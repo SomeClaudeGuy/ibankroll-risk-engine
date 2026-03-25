@@ -9,43 +9,50 @@ function extractText(content) {
 }
 
 function parseJSON(raw) {
-  // Try to extract JSON even if there's surrounding text
   const match = raw.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('No JSON object found');
+  if (!match) throw new Error('No JSON found');
   return JSON.parse(match[0]);
 }
 
-// Map URL path keywords → searchable league names
 const LEAGUE_MAP = [
-  { keys: ['nba'],                      sport: 'NBA',         label: 'NBA' },
-  { keys: ['nfl'],                      sport: 'NFL',         label: 'NFL' },
-  { keys: ['nhl'],                      sport: 'NHL',         label: 'NHL' },
-  { keys: ['mlb'],                      sport: 'MLB',         label: 'MLB' },
-  { keys: ['ncaab', 'college-basketball'], sport: 'NCAAB',    label: 'NCAA Basketball' },
-  { keys: ['ncaaf', 'college-football'],  sport: 'NCAAF',     label: 'NCAA Football' },
-  { keys: ['ufc', 'mma'],              sport: 'MMA/UFC',     label: 'UFC / MMA' },
-  { keys: ['premier-league', 'epl'],   sport: 'EPL',         label: 'Premier League' },
-  { keys: ['la-liga', 'laliga'],       sport: 'La Liga',     label: 'La Liga' },
-  { keys: ['bundesliga'],              sport: 'Bundesliga',  label: 'Bundesliga' },
-  { keys: ['serie-a'],                 sport: 'Serie A',     label: 'Serie A' },
-  { keys: ['ligue-1'],                 sport: 'Ligue 1',     label: 'Ligue 1' },
-  { keys: ['champions-league', 'ucl'], sport: 'UCL',         label: 'Champions League' },
-  { keys: ['europa-league'],           sport: 'UEL',         label: 'Europa League' },
-  { keys: ['soccer', 'football'],      sport: 'Soccer',      label: 'Soccer' },
-  { keys: ['tennis'],                  sport: 'Tennis',      label: 'Tennis' },
-  { keys: ['basketball'],              sport: 'Basketball',  label: 'Basketball' },
-  { keys: ['american-football'],       sport: 'American Football', label: 'American Football' },
-  { keys: ['ice-hockey', 'hockey'],    sport: 'Hockey',      label: 'Hockey' },
-  { keys: ['baseball'],                sport: 'Baseball',    label: 'Baseball' },
-  { keys: ['boxing'],                  sport: 'Boxing',      label: 'Boxing' },
+  { keys: ['nba'],                        label: 'NBA',               sport: 'NBA' },
+  { keys: ['nfl'],                        label: 'NFL',               sport: 'NFL' },
+  { keys: ['nhl'],                        label: 'NHL',               sport: 'NHL' },
+  { keys: ['mlb'],                        label: 'MLB',               sport: 'MLB' },
+  { keys: ['ncaab','college-basketball'], label: 'NCAA Basketball',   sport: 'NCAAB' },
+  { keys: ['ncaaf','college-football'],   label: 'NCAA Football',     sport: 'NCAAF' },
+  { keys: ['ufc','mma'],                  label: 'UFC / MMA',         sport: 'MMA/UFC' },
+  { keys: ['premier-league','epl'],       label: 'Premier League',    sport: 'EPL' },
+  { keys: ['la-liga','laliga'],           label: 'La Liga',           sport: 'La Liga' },
+  { keys: ['bundesliga'],                 label: 'Bundesliga',        sport: 'Bundesliga' },
+  { keys: ['serie-a'],                    label: 'Serie A',           sport: 'Serie A' },
+  { keys: ['ligue-1'],                    label: 'Ligue 1',           sport: 'Ligue 1' },
+  { keys: ['champions-league','ucl'],     label: 'Champions League',  sport: 'UCL' },
+  { keys: ['europa-league'],              label: 'Europa League',     sport: 'UEL' },
+  { keys: ['tennis'],                     label: 'Tennis',            sport: 'Tennis' },
+  { keys: ['basketball'],                 label: 'Basketball',        sport: 'Basketball' },
+  { keys: ['soccer','football'],          label: 'Soccer',            sport: 'Soccer' },
+  { keys: ['hockey','ice-hockey'],        label: 'Hockey',            sport: 'Hockey' },
+  { keys: ['baseball'],                   label: 'Baseball',          sport: 'Baseball' },
+  { keys: ['boxing'],                     label: 'Boxing',            sport: 'Boxing' },
 ];
 
-function detectLeague(urlPath) {
-  const lower = urlPath.toLowerCase();
-  for (const entry of LEAGUE_MAP) {
-    if (entry.keys.some(k => lower.includes(k))) return entry;
-  }
-  return null;
+function detectLeague(path) {
+  const lower = path.toLowerCase();
+  return LEAGUE_MAP.find(e => e.keys.some(k => lower.includes(k))) || null;
+}
+
+/**
+ * Given the last URL path segment (e.g. "boston-celtics-oklahoma-city-thunder-2648126436443041833"),
+ * strip trailing pure-numeric IDs and return a human-readable slug.
+ * Returns null if what's left is just a league/sport name (≤ 2 words).
+ */
+function extractFixtureSlug(segment) {
+  // Remove trailing numeric ID (8+ digit numbers at the end, possibly preceded by hyphen)
+  const cleaned = segment.replace(/-?\d{8,}$/, '').replace(/-$/, '').trim();
+  const words = cleaned.split('-').filter(Boolean);
+  // If 3+ words remain it likely contains team names
+  return words.length >= 3 ? words.join(' ') : null;
 }
 
 module.exports = async (req, res) => {
@@ -62,52 +69,112 @@ module.exports = async (req, res) => {
   try { parsedUrl = new URL(url); }
   catch { return res.status(400).json({ success: false, error: 'Invalid URL.' }); }
 
-  const league = detectLeague(parsedUrl.pathname);
+  const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
+  const lastSegment  = pathSegments[pathSegments.length - 1] || '';
+  const fixtureSlug  = extractFixtureSlug(lastSegment);
+  const league       = detectLeague(parsedUrl.pathname);
 
-  // If we can identify a league, search for upcoming fixtures in it.
-  // This works regardless of whether the URL contains team names.
-  const searchTarget = league
-    ? `upcoming ${league.label} fixtures odds today this week`
-    : `sports betting odds fixtures today`;
+  // ── Mode A: URL contains team names ────────────────────────────────────────
+  // e.g. /nba/boston-celtics-oklahoma-city-thunder-2648126436443041833
+  if (fixtureSlug) {
+    console.log(`[parse-fixture] Mode A — fixture slug: "${fixtureSlug}"`);
 
-  console.log(`[parse-fixture] URL: ${url} → detected: ${league?.label || 'unknown'} → searching: "${searchTarget}"`);
+    const prompt = `You are a sports data specialist. Search for the current betting odds for this fixture.
 
-  try {
-    const prompt = `You are a sports data specialist. The user pasted this sportsbook URL:
+Fixture slug from URL: "${fixtureSlug}"
+League: ${league?.label || 'unknown'}
 
-${url}
+Search for: "${fixtureSlug} odds betting ${league?.label || ''}"
 
-The URL path is: ${parsedUrl.pathname}
-Detected sport/league: ${league ? league.label : 'unknown — infer from URL'}
+Identify the two teams/players from the slug and find their current odds on this specific matchup.
 
-Step 1 — Search for: "${searchTarget}"
-Find the upcoming or live fixtures in this sport/league along with their current betting odds.
+Respond ONLY with valid JSON — no markdown, no extra text:
 
-Step 2 — Return a JSON object listing all fixtures you find. Include as many markets per fixture as possible.
+{
+  "fixture": "Team A vs Team B",
+  "sport": "${league?.sport || 'Unknown'}",
+  "competition": "league name",
+  "kickoff": "date/time string or null",
+  "markets": [
+    { "marketName": "Moneyline", "selection": "Team A", "odds": 1.75 },
+    { "marketName": "Moneyline", "selection": "Team B", "odds": 2.15 },
+    { "marketName": "Spread (-3.5)", "selection": "Team A -3.5", "odds": 1.91 },
+    { "marketName": "Spread (+3.5)", "selection": "Team B +3.5", "odds": 1.91 },
+    { "marketName": "Total Over 224.5", "selection": "Over 224.5", "odds": 1.91 },
+    { "marketName": "Total Under 224.5", "selection": "Under 224.5", "odds": 1.91 }
+  ]
+}
+
+Include all available markets. Use decimal odds throughout.`;
+
+    try {
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      const raw = extractText(response.content);
+      const data = parseJSON(raw);
+
+      if (!data.fixture || !data.markets?.length) {
+        throw new Error('Incomplete fixture data');
+      }
+
+      // Mode A returns a single fixture — wrap in fixtures[] for consistent frontend format
+      return res.json({
+        success: true,
+        data: {
+          sport: data.sport,
+          competition: data.competition,
+          fixtures: [{
+            fixture: data.fixture,
+            kickoff: data.kickoff || null,
+            markets: data.markets,
+          }],
+        },
+      });
+
+    } catch (err) {
+      console.error('[parse-fixture] Mode A failed:', err.message, '— falling back to Mode B');
+      // Fall through to Mode B
+    }
+  }
+
+  // ── Mode B: URL has no team names — search for upcoming league fixtures ────
+  // e.g. /sports/basketball/usa/nba-1669819088278523904
+  const leagueLabel = league?.label || 'sports';
+  console.log(`[parse-fixture] Mode B — league: "${leagueLabel}"`);
+
+  const prompt = `You are a sports data specialist. Search for upcoming ${leagueLabel} fixtures with betting odds.
+
+Search for: "upcoming ${leagueLabel} games odds today this week"
+
+Return as many upcoming fixtures as you can find (aim for 6-10).
 
 Respond ONLY with valid JSON — no markdown, no extra text:
 
 {
   "sport": "${league?.sport || 'Unknown'}",
-  "competition": "league or competition name",
+  "competition": "${leagueLabel}",
   "fixtures": [
     {
       "fixture": "Team A vs Team B",
-      "kickoff": "e.g. Today 19:45 UTC or null",
+      "kickoff": "date/time or null",
       "markets": [
         { "marketName": "Moneyline", "selection": "Team A", "odds": 1.75 },
         { "marketName": "Moneyline", "selection": "Team B", "odds": 2.15 },
-        { "marketName": "Draw", "selection": "Draw", "odds": 3.40 },
         { "marketName": "Spread (-3.5)", "selection": "Team A -3.5", "odds": 1.91 },
+        { "marketName": "Spread (+3.5)", "selection": "Team B +3.5", "odds": 1.91 },
         { "marketName": "Total Over 224.5", "selection": "Over 224.5", "odds": 1.91 },
         { "marketName": "Total Under 224.5", "selection": "Under 224.5", "odds": 1.91 }
       ]
     }
   ]
-}
+}`;
 
-List as many upcoming fixtures as you can find — aim for at least 4-8 games. More is better.`;
-
+  try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
@@ -116,32 +183,24 @@ List as many upcoming fixtures as you can find — aim for at least 4-8 games. M
     });
 
     const raw = extractText(response.content);
-    console.log(`[parse-fixture] Done. stop_reason=${response.stop_reason}`);
-
-    let data;
-    try {
-      data = parseJSON(raw);
-    } catch (e) {
-      console.error('[parse-fixture] JSON parse error:', e.message, '\nRaw:', raw.slice(0, 400));
-      return res.status(500).json({
-        success: false,
-        error: `Could not parse fixtures for ${league?.label || 'that sport'}. Try entering the details manually.`,
-      });
-    }
+    const data = parseJSON(raw);
 
     if (!data.fixtures?.length) {
       return res.status(422).json({
         success: false,
-        error: `No upcoming fixtures found for ${league?.label || 'that sport'}. Try entering the details manually.`,
+        error: `No upcoming fixtures found for ${leagueLabel}. Try entering details manually.`,
       });
     }
 
     return res.json({ success: true, data });
 
   } catch (err) {
-    console.error('[parse-fixture] Error:', err);
+    console.error('[parse-fixture] Mode B error:', err);
     if (err.status === 401) return res.status(500).json({ success: false, error: 'Invalid API key.' });
     if (err.status === 429) return res.status(429).json({ success: false, error: 'Rate limit reached. Please wait and try again.' });
-    return res.status(500).json({ success: false, error: err.message || 'Failed to parse fixture.' });
+    return res.status(500).json({
+      success: false,
+      error: `Could not find fixtures for ${leagueLabel}. Try entering details manually.`,
+    });
   }
 };
