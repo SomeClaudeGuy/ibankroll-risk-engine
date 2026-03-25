@@ -36,42 +36,48 @@ module.exports = async (req, res) => {
 
     const impliedProb = 1 / oddsNum;
 
-    // Single combined call: web search + structured JSON analysis
-    const prompt = `You are a senior sports trading analyst at a wholesale sportsbook. A client wants to place this bet:
+    const prompt = `You are a senior sports trading analyst at a wholesale sportsbook with 15 years of experience. A client has placed the following bet and you must produce a complete commercial risk assessment using your expert knowledge.
 
-Fixture:   ${matchup}
-Selection: ${selection}
-Odds:      ${oddsNum} (decimal)
-Stake:     $${wagerNum.toLocaleString('en-US')}
+FIXTURE:   ${matchup}
+SELECTION: ${selection}
+CLIENT ODDS (decimal): ${oddsNum}
+STAKE:     $${wagerNum.toLocaleString('en-US')}
+IMPLIED PROBABILITY: ${(impliedProb * 100).toFixed(2)}%
 
-STEP 1 — Search for the following (run 2 searches max):
-1. "${matchup} ${selection} odds Pinnacle Bet365 DraftKings" — live market prices
-2. "${matchup} form head to head injuries" — recent form, H2H, team news
+YOUR TASK — using your deep knowledge of this sport, competition, teams/players, and betting markets:
 
-STEP 2 — Using what you found, produce a complete commercial risk assessment.
+1. IDENTIFY sport, competition, and market type from the fixture and selection.
 
-You must determine:
-- Sport and market type (from fixture + selection)
-- OFFLOAD % — how much of this risk to lay off to our iBankroll wholesale partner.
-  Sharp/large/risky bet = offload more (60–85%). Soft/recreational = retain more (20–50%).
-- MARGIN % — our profit margin on the iBankroll wholesale price.
-  Liquid markets (NBA ML, EPL 1X2): 3–5%. Niche/props/parlays: 5–10%.
+2. ASSESS the bet:
+   - Estimate what the true fair odds should be for this selection
+   - Estimate current prices at Pinnacle, Bet365, DraftKings, FanDuel, PointsBet
+   - Analyse recent form, head-to-head record, and key statistics for both sides
+   - Identify whether this looks like sharp or recreational money
+   - Note any well-known injuries, suspensions, or contextual factors
 
-Then calculate:
-  ibOdds   = ${oddsNum} × (1 − margin/100)
-  retained = ${wagerNum} × (1 − offload/100)
-  offloaded= ${wagerNum} × (offload/100)
-  netWin   = offloaded × (ibOdds − 1) − ${wagerNum} × (${oddsNum} − 1) + ${wagerNum}
-  netLose  = retained
-  ev       = ${impliedProb.toFixed(6)} × netWin − ${(1 - impliedProb).toFixed(6)} × retained
+3. DETERMINE commercial parameters:
+   OFFLOAD % — how much risk to lay off to our iBankroll wholesale partner:
+     - Sharp / large stake / high variance = offload 60–85%
+     - Soft / recreational / low variance = offload 20–50%
+   MARGIN % — our profit margin on the iBankroll wholesale price:
+     - Liquid mainstream markets (NBA ML, EPL 1X2, spreads): 3–5%
+     - Player props, correct score, parlays, niche markets: 5–10%
 
-For aiAnalysis write exactly 4 paragraphs (separated by \\n\\n):
-  1. Market overview and where client's odds sit vs consensus
-  2. Form, H2H and statistical case for/against
-  3. Sharp action, line movement, public vs smart money
-  4. Commercial verdict — how to position, margin justification, key risks
+4. CALCULATE using your chosen offload % and margin %:
+   ibOdds   = ${oddsNum} × (1 − margin/100)
+   retained = ${wagerNum} × (1 − offload/100)
+   offloaded= ${wagerNum} × (offload/100)
+   netWin   = offloaded × (ibOdds − 1) − ${wagerNum} × (${oddsNum} − 1) + ${wagerNum}
+   netLose  = retained
+   ev       = ${impliedProb.toFixed(6)} × netWin − ${(1 - impliedProb).toFixed(6)} × retained
 
-STEP 3 — Respond ONLY with this JSON object. No markdown fences. No text before or after.
+5. WRITE aiAnalysis as exactly 4 paragraphs (double newline between each):
+   § 1 — Market overview: where do these odds sit vs the consensus? Is the client getting value or giving it away?
+   § 2 — Form & statistics: what do the numbers say? Recent results, H2H, home/away, motivation.
+   § 3 — Sharp money & line context: does this look like a sharp play? Where would you expect the line to be and why?
+   § 4 — Commercial verdict: how should we position this on our book, what margin is justified, what keeps you up at night about this bet?
+
+Respond ONLY with the following JSON. No markdown. No text before or after. No comments.
 
 {
   "detectedSport": "string",
@@ -86,56 +92,54 @@ STEP 3 — Respond ONLY with this JSON object. No markdown fences. No text befor
   "ev": number,
   "verdict": "TAKE" | "LEAN_TAKE" | "LEAN_PASS" | "PASS",
   "verdictReason": "string max 25 words",
-  "riskScore": integer 1–100,
+  "riskScore": integer 1-100,
   "riskLabel": "Low" | "Moderate" | "High" | "Very High",
   "fairOdds": number,
   "impliedProb": number,
   "marketOdds": [
-    {"book":"Pinnacle","price":number},
-    {"book":"Bet365","price":number},
-    {"book":"DraftKings","price":number},
-    {"book":"FanDuel","price":number},
-    {"book":"PointsBet","price":number}
+    {"book": "Pinnacle",   "price": number},
+    {"book": "Bet365",     "price": number},
+    {"book": "DraftKings", "price": number},
+    {"book": "FanDuel",    "price": number},
+    {"book": "PointsBet",  "price": number}
   ],
   "optimalOffload": integer,
   "suggestedMaxWager": number,
   "edgeVsMarket": number,
   "kellyFraction": number,
   "clv": number,
-  "recentForm": "string",
-  "lineMovement": "string",
-  "keyRisks": "string",
-  "aiAnalysis": "para1\\n\\npara2\\n\\npara3\\n\\npara4",
+  "recentForm": "2-3 sentences on both sides recent form and H2H",
+  "lineMovement": "1-2 sentences on expected line movement and why",
+  "keyRisks": "2-3 specific risks to our book position",
+  "aiAnalysis": "paragraph 1\\n\\nparagraph 2\\n\\nparagraph 3\\n\\nparagraph 4",
   "breakEvenProb": number,
   "sharpAction": "string",
   "publicVsSharp": "string",
   "weatherInjuries": "string",
   "scenarios": [
-    {"label":"Best case","pnl":number,"desc":"string"},
-    {"label":"Base case","pnl":number,"desc":"string"},
-    {"label":"Worst case","pnl":number,"desc":"string"}
+    {"label": "Best case",  "pnl": number, "desc": "string"},
+    {"label": "Base case",  "pnl": number, "desc": "string"},
+    {"label": "Worst case", "pnl": number, "desc": "string"}
   ]
 }`;
 
-    console.log(`[analyse] Single-call analysis: ${matchup} / ${selection}`);
+    console.log(`[analyse] ${matchup} / ${selection} @ ${oddsNum}`);
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      max_tokens: 2500,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    console.log(`[analyse] Done. stop_reason=${response.stop_reason}`);
-
     const rawText = extractText(response.content);
+    console.log(`[analyse] Done. stop_reason=${response.stop_reason}`);
 
     let data;
     try {
       data = parseJSON(rawText);
     } catch (e) {
       console.error('[analyse] JSON parse error:', e.message);
-      console.error('[analyse] Raw (500 chars):', rawText.slice(0, 500));
+      console.error('[analyse] Raw:', rawText.slice(0, 500));
       return res.status(500).json({ success: false, error: 'Model returned invalid JSON. Please try again.' });
     }
 
