@@ -35,17 +35,15 @@ module.exports = async (req, res) => {
   try {
     console.log(`[parse-fixture] Fetching: ${url}`);
 
-    const prompt = `You are a sports data extraction specialist. Use web search to browse this sportsbook URL and extract all available betting markets and odds:
+    // Extract any useful slug info from the URL to help guide search
+    const urlSlug = parsedUrl.pathname.replace(/[^a-z0-9-]/gi, ' ').trim();
+
+    const prompt = `You are a sports data extraction specialist. Use ONE focused web search to find the betting markets for this sportsbook event.
 
 URL: ${url}
+URL slug hints: ${urlSlug}
 
-Browse the page and identify:
-1. The fixture (which two teams/players are competing)
-2. The sport and competition/league
-3. The scheduled kickoff/start time if visible
-4. ALL available betting markets with their current decimal odds
-
-If the page requires login or isn't accessible, search for the fixture using any identifiers from the URL (sport, league, event ID, team names) to find the current odds on this event.
+Do a single search using the most identifying terms from the URL slug (team names, sport, league). Find the fixture and its current odds.
 
 Respond ONLY with a valid JSON object — no markdown, no extra text:
 
@@ -55,44 +53,20 @@ Respond ONLY with a valid JSON object — no markdown, no extra text:
   "competition": "NBA Regular Season",
   "kickoff": "string or null",
   "markets": [
-    {
-      "marketName": "Moneyline",
-      "selection": "Team A",
-      "odds": 1.75
-    },
-    {
-      "marketName": "Moneyline",
-      "selection": "Team B",
-      "odds": 2.15
-    },
-    {
-      "marketName": "Spread (-5.5)",
-      "selection": "Team A -5.5",
-      "odds": 1.91
-    },
-    {
-      "marketName": "Spread (+5.5)",
-      "selection": "Team B +5.5",
-      "odds": 1.91
-    },
-    {
-      "marketName": "Total Over 224.5",
-      "selection": "Over 224.5",
-      "odds": 1.91
-    },
-    {
-      "marketName": "Total Under 224.5",
-      "selection": "Under 224.5",
-      "odds": 1.91
-    }
+    { "marketName": "Moneyline", "selection": "Team A", "odds": 1.75 },
+    { "marketName": "Moneyline", "selection": "Team B", "odds": 2.15 },
+    { "marketName": "Spread (-5.5)", "selection": "Team A -5.5", "odds": 1.91 },
+    { "marketName": "Spread (+5.5)", "selection": "Team B +5.5", "odds": 1.91 },
+    { "marketName": "Total Over 224.5", "selection": "Over 224.5", "odds": 1.91 },
+    { "marketName": "Total Under 224.5", "selection": "Under 224.5", "odds": 1.91 }
   ]
 }
 
-Include as many markets as you can find: moneylines, spreads/handicaps, totals, player props, 1X2, BTTS, etc. Use decimal odds throughout. If you cannot find exact odds, provide realistic estimates based on current market knowledge and note them as estimates.`;
+Include moneylines, spreads, totals and any player props you find. Use decimal odds. If exact odds aren't found, use realistic current market estimates.`;
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: prompt }],
     });
