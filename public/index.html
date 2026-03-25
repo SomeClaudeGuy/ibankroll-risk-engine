@@ -553,7 +553,11 @@ async function importFixture() {
 
     if (!json.success) throw new Error(json.error || 'Could not find fixtures.');
 
-    renderFixturePicker(json.data);
+    if (json.mode === 'single') {
+      renderSingleFixture(json.data);
+    } else {
+      renderFixturePicker(json.data);
+    }
 
   } catch (err) {
     showUrlError(err.message || 'Failed to import. Try entering details manually.');
@@ -563,6 +567,23 @@ async function importFixture() {
   btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 9v1a1 1 0 001 1h8a1 1 0 001-1V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Import';
 }
 
+// Mode A: single fixture from URL — show markets immediately, no fixture picker needed
+function renderSingleFixture(data) {
+  importedFixtures = [{ fixture: data.fixture, kickoff: data.kickoff, markets: data.markets }];
+
+  $('pickerTitle').textContent = data.fixture;
+  $('pickerMeta').textContent = [data.sport, data.competition, data.kickoff].filter(Boolean).join(' · ');
+  $('fixturesList').innerHTML = ''; // no fixture list needed
+
+  $('matchup').value = data.fixture;
+
+  // Render markets directly
+  renderMarketsGrid(0);
+  $('marketsSection').classList.add('active');
+  $('marketPicker').classList.add('active');
+}
+
+// Mode B: multiple fixtures — show list first
 function renderFixturePicker(data) {
   importedFixtures = data.fixtures || [];
 
@@ -580,30 +601,25 @@ function renderFixturePicker(data) {
   $('marketPicker').classList.add('active');
 }
 
-function selectFixture(i) {
-  const f = importedFixtures[i];
-  if (!f) return;
-
-  selectedFixtureIdx = i;
-
-  // Highlight selected fixture
-  document.querySelectorAll('.fixture-btn').forEach(b => b.classList.remove('selected'));
-  $(`fix-${i}`).classList.add('selected');
-
-  // Pre-fill matchup
-  $('matchup').value = f.fixture;
-
-  // Render markets for this fixture
-  const markets = f.markets || [];
-  document.querySelectorAll('.mkt-btn').forEach(b => b.classList.remove('selected'));
+function renderMarketsGrid(fixtureIdx) {
+  const markets = importedFixtures[fixtureIdx]?.markets || [];
   $('marketsGrid').innerHTML = markets.map((m, j) => `
-    <button class="mkt-btn" id="mkt-${j}" onclick="selectMarket(${i}, ${j})">
+    <button class="mkt-btn" id="mkt-${j}" onclick="selectMarket(${fixtureIdx}, ${j})">
       <div class="mkt-name">${esc(m.marketName)}</div>
       <div class="mkt-selection">${esc(m.selection)}</div>
       <div class="mkt-odds">${dp(m.odds)}</div>
     </button>
   `).join('');
+}
 
+function selectFixture(i) {
+  const f = importedFixtures[i];
+  if (!f) return;
+  selectedFixtureIdx = i;
+  document.querySelectorAll('.fixture-btn').forEach(b => b.classList.remove('selected'));
+  $(`fix-${i}`).classList.add('selected');
+  $('matchup').value = f.fixture;
+  renderMarketsGrid(i);
   $('marketsSection').classList.add('active');
   $('marketsSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }

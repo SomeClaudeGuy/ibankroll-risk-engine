@@ -122,17 +122,16 @@ Include all available markets. Use decimal odds throughout.`;
         throw new Error('Incomplete fixture data');
       }
 
-      // Mode A returns a single fixture — wrap in fixtures[] for consistent frontend format
+      // Mode A: single fixture — return directly so frontend skips the fixture picker
       return res.json({
         success: true,
+        mode: 'single',
         data: {
           sport: data.sport,
           competition: data.competition,
-          fixtures: [{
-            fixture: data.fixture,
-            kickoff: data.kickoff || null,
-            markets: data.markets,
-          }],
+          fixture: data.fixture,
+          kickoff: data.kickoff || null,
+          markets: data.markets,
         },
       });
 
