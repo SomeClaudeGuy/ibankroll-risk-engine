@@ -6,22 +6,14 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function extractText(content) {
   if (!Array.isArray(content)) return String(content);
-  return content
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('\n');
+  return content.filter(b => b.type === 'text').map(b => b.text).join('\n');
 }
 
 function parseJSON(raw) {
-  const stripped = raw
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-  return JSON.parse(stripped);
+  return JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim());
 }
 
 module.exports = async (req, res) => {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -29,50 +21,34 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed.' });
 
   try {
-    const {
-      matchup, sport, market, selection,
-      odds, wager, offloadPct, marginPct,
-      retained, offloaded, ibOdds, netWin, netLose, ev,
-    } = req.body;
+    const { matchup, selection, odds, wager } = req.body;
 
-    if (!matchup || !sport || !market || !selection || !odds || !wager) {
-      return res.status(400).json({ success: false, error: 'Missing required fields.' });
+    if (!matchup || !selection || !odds || !wager) {
+      return res.status(400).json({ success: false, error: 'Fixture, selection, odds and wager are required.' });
     }
 
-    const oddsNum       = parseFloat(odds);
-    const wagerNum      = parseFloat(wager);
-    const offloadPctNum = parseFloat(offloadPct) || 50;
-    const marginPctNum  = parseFloat(marginPct)  || 5;
+    const oddsNum  = parseFloat(odds);
+    const wagerNum = parseFloat(wager);
 
-    const retainedCalc = retained ?? wagerNum * (1 - offloadPctNum / 100);
-    const offloadedCalc = offloaded ?? wagerNum * (offloadPctNum / 100);
-    const ibOddsCalc    = ibOdds   ?? oddsNum * (1 - marginPctNum / 100);
-    const netWinCalc    = netWin   ?? (offloadedCalc * (ibOddsCalc - 1) - wagerNum * (oddsNum - 1) + wagerNum);
-    const netLoseCalc   = netLose  ?? retainedCalc;
-    const evCalc        = ev       ?? ((1 / oddsNum) * netWinCalc - (1 - 1 / oddsNum) * retainedCalc);
-
-    const fmt = n => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (isNaN(oddsNum) || oddsNum < 1.01) return res.status(400).json({ success: false, error: 'Odds must be ≥ 1.01.' });
+    if (isNaN(wagerNum) || wagerNum <= 0)  return res.status(400).json({ success: false, error: 'Wager must be > 0.' });
 
     // ── Phase 1: Web search ──────────────────────────────────────────────────
-    const searchPrompt = `You are an expert sports betting analyst with access to real-time web search.
+    const searchPrompt = `You are a professional sports trading analyst. Research this bet using web search.
 
-Research the following bet thoroughly using multiple web searches:
-
-FIXTURE: ${matchup}
-SPORT: ${sport}
-MARKET: ${market}
+FIXTURE:   ${matchup}
 SELECTION: ${selection}
-DECIMAL ODDS OFFERED: ${oddsNum}
+ODDS:      ${oddsNum}
 
-Please search for:
-1. "${matchup} odds ${market} Pinnacle Bet365 DraftKings" — current live odds from major bookmakers
-2. "${matchup} ${sport} preview form statistics head to head" — recent form, H2H record, team/player stats
-3. "${matchup} line movement sharp action betting" — line movement and sharp money indicators
-4. "${matchup} injury report team news ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}" — injury and team news
+Run the following searches:
+1. "${matchup} odds ${selection}" — find current live prices from Pinnacle, Bet365, DraftKings, FanDuel
+2. "${matchup} preview form statistics head to head" — recent form, H2H, key stats
+3. "${matchup} betting line movement sharp money" — line movement and sharp action
+4. "${matchup} team news injuries ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}" — latest team/injury news
 
-Gather as much data as possible. I will use your findings for a detailed risk analysis.`;
+Gather everything. I will use it for a full risk analysis.`;
 
-    console.log(`[analyse] Web search phase: ${matchup}`);
+    console.log(`[analyse] Searching: ${matchup} / ${selection}`);
 
     const searchResponse = await client.messages.create({
       model: 'claude-sonnet-4-6',
@@ -82,72 +58,82 @@ Gather as much data as possible. I will use your findings for a detailed risk an
     });
 
     const searchResults = extractText(searchResponse.content);
-    console.log(`[analyse] Web search done. stop_reason=${searchResponse.stop_reason}`);
+    console.log(`[analyse] Search done.`);
 
-    // ── Phase 2: Structured analysis ────────────────────────────────────────
-    const impliedProb   = (1 / oddsNum);
-    const breakEvenProb = impliedProb;
-    const kellyApprox   = Math.max(0, ((oddsNum - 1) * impliedProb - (1 - impliedProb)) / (oddsNum - 1));
+    // ── Phase 2: Full analysis ───────────────────────────────────────────────
+    const impliedProb = 1 / oddsNum;
 
-    const analysisPrompt = `You are a professional sports betting risk analyst and quant trader. Using the web search data below, produce a complete JSON risk analysis.
+    const analysisPrompt = `You are a senior sports trading analyst at a wholesale sportsbook. A client wants to place a bet and you must decide how to position it on our book.
 
-═══════════════════════════════════════════
-BET DETAILS
-═══════════════════════════════════════════
-Fixture:        ${matchup}
-Sport:          ${sport}
-Market:         ${market}
-Selection:      ${selection}
-Decimal Odds:   ${oddsNum}
-Total Wager:    ${fmt(wagerNum)}
-Offload %:      ${offloadPctNum}%
-Your Margin %:  ${marginPctNum}%
+You will determine ALL commercial parameters — the client only tells us the fixture, selection, odds, and stake.
 
 ═══════════════════════════════════════════
-PRE-CALCULATED FINANCIALS
+BET RECEIVED
 ═══════════════════════════════════════════
-Retained Stake (your exposure):   ${fmt(retainedCalc)}
-Offloaded to iBankroll:           ${fmt(offloadedCalc)}
-iBankroll Price (odds × margin):  ${ibOddsCalc.toFixed(4)}
-Net Profit if Win:                ${fmt(netWinCalc)}
-Net Loss if Lose:                 -${fmt(netLoseCalc)}
-Expected Value (EV):              ${fmt(evCalc)} ${evCalc >= 0 ? '(POSITIVE)' : '(NEGATIVE)'}
-Implied Probability:              ${(impliedProb * 100).toFixed(2)}%
-Break-Even Probability:           ${(breakEvenProb * 100).toFixed(2)}%
-Kelly Fraction (approx):          ${(kellyApprox * 100).toFixed(2)}%
+Fixture:          ${matchup}
+Selection:        ${selection}
+Client's Odds:    ${oddsNum} (decimal)
+Stake:            $${wagerNum.toLocaleString('en-US')}
+Implied Prob:     ${(impliedProb * 100).toFixed(2)}%
 
 ═══════════════════════════════════════════
-WEB SEARCH RESULTS
+WEB SEARCH DATA
 ═══════════════════════════════════════════
 ${searchResults}
 
 ═══════════════════════════════════════════
-INSTRUCTIONS
+YOUR JOB
 ═══════════════════════════════════════════
-Using ALL data above, produce a comprehensive risk analysis. Be specific and data-driven.
+Using the search data above, produce a complete commercial risk assessment. You must determine:
 
-For marketOdds: use actual odds from search data. If unavailable, estimate realistically.
-For fairOdds: your genuine probabilistic assessment of the true fair price.
-For riskScore: 1=very low risk, 100=extremely high risk.
+1. SPORT & MARKET — identify from the fixture and selection
+2. OFFLOAD % — what % of this risk we should lay off to our iBankroll wholesale partner.
+   Logic: high risk / sharp bet / large stake vs market = offload more (60-85%).
+   Recreational / soft bet / favourable odds for us = retain more (20-50%).
+   Range: 0-100.
+3. MARGIN % — our profit margin on the iBankroll wholesale price.
+   Liquid mainstream markets (EPL 1X2, NBA ML): 3-5%.
+   Niche/prop/accas: 5-10%.
+   Very sharp or uncertain: up to 12%.
+
+Based on your recommended offload % and margin %, calculate:
+  ibOdds    = ${oddsNum} × (1 - margin/100)
+  retained  = ${wagerNum} × (1 - offload/100)
+  offloaded = ${wagerNum} × (offload/100)
+  netWin    = offloaded × (ibOdds - 1) - ${wagerNum} × (${oddsNum} - 1) + ${wagerNum}
+  netLose   = retained
+  ev        = (${impliedProb.toFixed(6)}) × netWin - (${(1 - impliedProb).toFixed(6)}) × retained
+
 For scenarios:
-  - Best case: net profit if win AND conditions most favourable
-  - Base case: expected outcome at implied probability
-  - Worst case: net loss if bet loses
-For aiAnalysis: exactly 4 paragraphs (double-newline separated):
-  (1) market overview & odds context
-  (2) form/statistics analysis
-  (3) sharp action & line movement
-  (4) commercial recommendation & risk management
+  Best case pnl  = netWin (bet wins, our position is positive)
+  Base case pnl  = EV
+  Worst case pnl = −retained (bet wins and it's our worst outcome, or bet loses and we're fully exposed)
 
-Respond ONLY with a valid JSON object matching this exact schema — no markdown fences, no extra text:
+For aiAnalysis: exactly 4 paragraphs separated by \\n\\n:
+  (1) Market overview — where is the consensus, is the client's price fair, over, or under market?
+  (2) Form & statistics — what do the numbers say about likely outcome?
+  (3) Sharp action & line movement — is this a sharp or public bet? Where is the smart money?
+  (4) Commercial verdict — how should we position this, what margin is justified, key risks to our book?
+
+Respond ONLY with a valid JSON object. No markdown fences. No extra text. No comments.
 
 {
+  "detectedSport": "string",
+  "detectedMarket": "string",
+  "recommendedOffload": integer 0-100,
+  "recommendedMargin": number,
+  "ibOdds": number,
+  "retained": number,
+  "offloaded": number,
+  "netWin": number,
+  "netLose": number,
+  "ev": number,
   "verdict": "TAKE" | "LEAN_TAKE" | "LEAN_PASS" | "PASS",
-  "verdictReason": "string (max 25 words)",
-  "riskScore": number between 1 and 100,
+  "verdictReason": "string max 25 words",
+  "riskScore": integer 1-100,
   "riskLabel": "Low" | "Moderate" | "High" | "Very High",
   "fairOdds": number,
-  "impliedProb": number between 0 and 1,
+  "impliedProb": number,
   "marketOdds": [
     {"book": "Pinnacle", "price": number},
     {"book": "Bet365", "price": number},
@@ -155,7 +141,7 @@ Respond ONLY with a valid JSON object matching this exact schema — no markdown
     {"book": "FanDuel", "price": number},
     {"book": "PointsBet", "price": number}
   ],
-  "optimalOffload": number between 0 and 100,
+  "optimalOffload": integer,
   "suggestedMaxWager": number,
   "edgeVsMarket": number,
   "kellyFraction": number,
@@ -164,7 +150,7 @@ Respond ONLY with a valid JSON object matching this exact schema — no markdown
   "lineMovement": "string",
   "keyRisks": "string",
   "aiAnalysis": "paragraph1\\n\\nparagraph2\\n\\nparagraph3\\n\\nparagraph4",
-  "breakEvenProb": number between 0 and 1,
+  "breakEvenProb": number,
   "sharpAction": "string",
   "publicVsSharp": "string",
   "weatherInjuries": "string",
@@ -175,7 +161,7 @@ Respond ONLY with a valid JSON object matching this exact schema — no markdown
   ]
 }`;
 
-    console.log(`[analyse] Structured analysis call...`);
+    console.log(`[analyse] Running analysis...`);
 
     const analysisResponse = await client.messages.create({
       model: 'claude-opus-4-6',
@@ -184,25 +170,26 @@ Respond ONLY with a valid JSON object matching this exact schema — no markdown
     });
 
     const rawJSON = extractText(analysisResponse.content);
-    console.log(`[analyse] Analysis complete. Parsing JSON...`);
 
     let data;
     try {
       data = parseJSON(rawJSON);
-    } catch (parseErr) {
-      console.error('[analyse] JSON parse error:', parseErr.message);
-      return res.status(500).json({
-        success: false,
-        error: 'Model returned invalid JSON. Please try again.',
-      });
+    } catch (e) {
+      console.error('[analyse] JSON parse error:', e.message);
+      console.error('[analyse] Raw (500 chars):', rawJSON.slice(0, 500));
+      return res.status(500).json({ success: false, error: 'Model returned invalid JSON. Please try again.' });
     }
+
+    // Attach input context for the frontend
+    data.inputOdds  = oddsNum;
+    data.inputWager = wagerNum;
 
     return res.json({ success: true, data });
 
   } catch (err) {
     console.error('[analyse] Error:', err);
-    if (err.status === 401) return res.status(500).json({ success: false, error: 'Invalid Anthropic API key.' });
-    if (err.status === 429) return res.status(429).json({ success: false, error: 'Rate limit reached. Please try again.' });
+    if (err.status === 401) return res.status(500).json({ success: false, error: 'Invalid Anthropic API key. Add ANTHROPIC_API_KEY in Vercel environment variables.' });
+    if (err.status === 429) return res.status(429).json({ success: false, error: 'Rate limit reached. Please wait a moment and try again.' });
     return res.status(500).json({ success: false, error: err.message || 'Internal server error.' });
   }
 };

@@ -6,1113 +6,609 @@
 <title>iBankroll / Bet Risk Engine</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #080808;
-  --surface: #0f0f0f;
-  --surface2: #161616;
-  --surface3: #1e1e1e;
-  --border: rgba(255,255,255,0.07);
-  --border2: rgba(255,255,255,0.14);
-  --text: #efefef;
-  --muted: #777;
-  --accent: #c8f135;
-  --accent2: #a3e635;
-  --danger: #f87171;
-  --warn: #fb923c;
-  --green: #4ade80;
-  --font-mono: 'IBM Plex Mono', monospace;
-  --font-sans: 'IBM Plex Sans', sans-serif;
-  --radius: 6px;
-  --radius-lg: 10px;
-  --transition: 180ms ease;
+  --bg:       #080808;
+  --s1:       #0f0f0f;
+  --s2:       #161616;
+  --s3:       #1e1e1e;
+  --b1:       rgba(255,255,255,0.07);
+  --b2:       rgba(255,255,255,0.14);
+  --text:     #efefef;
+  --muted:    #666;
+  --muted2:   #888;
+  --accent:   #c8f135;
+  --green:    #4ade80;
+  --danger:   #f87171;
+  --warn:     #fb923c;
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'IBM Plex Sans', sans-serif;
 }
 
-html { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
-body { min-height: 100vh; background: var(--bg); }
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: var(--surface); }
-::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+html { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; }
+::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-track { background: var(--s1); } ::-webkit-scrollbar-thumb { background: var(--s3); border-radius: 2px; }
 
 /* ── Layout ── */
-.wrap { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 
 /* ── Header ── */
-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 100;
-  backdrop-filter: blur(12px);
-}
-.header-inner {
-  display: flex; align-items: center; justify-content: space-between;
-  height: 56px; padding: 0 24px; max-width: 1280px; margin: 0 auto;
-}
-.logo {
-  display: flex; align-items: center; gap: 10px;
-}
-.logo-mark {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: -0.5px;
-}
-.logo-sub {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--muted);
-  letter-spacing: 0.5px;
-  padding-left: 10px;
-  border-left: 1px solid var(--border2);
-  margin-left: 2px;
-}
-.header-right {
-  display: flex; align-items: center; gap: 14px;
-}
-.status-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px var(--accent); }
-  50% { opacity: 0.7; transform: scale(0.85); box-shadow: 0 0 14px var(--accent); }
-}
-.live-tag {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
-  color: var(--accent);
-  background: rgba(200,241,53,0.08);
-  border: 1px solid rgba(200,241,53,0.2);
-  padding: 3px 9px;
-  border-radius: 3px;
-}
-
-/* ── Main ── */
-main { padding: 32px 0 80px; }
-
-/* ── Section labels ── */
-.section-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 16px;
-  display: flex; align-items: center; gap: 10px;
-}
-.section-label::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
+header { background: var(--s1); border-bottom: 1px solid var(--b1); position: sticky; top: 0; z-index: 100; }
+.header-inner { display: flex; align-items: center; justify-content: space-between; height: 52px; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.logo-mark { font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--accent); letter-spacing: -0.3px; }
+.logo-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); padding-left: 10px; border-left: 1px solid var(--b2); margin-left: 8px; letter-spacing: 0.3px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 7px var(--accent); animation: pulse 2.2s infinite; }
+@keyframes pulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.6; transform:scale(0.8); } }
+.live-badge { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--accent); background: rgba(200,241,53,0.07); border: 1px solid rgba(200,241,53,0.18); padding: 3px 8px; border-radius: 3px; }
 
 /* ── Input Card ── */
-.input-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 28px;
-  margin-bottom: 24px;
-}
+main { padding: 32px 0 80px; }
+.input-card { background: var(--s1); border: 1px solid var(--b1); border-radius: 12px; padding: 28px; margin-bottom: 20px; }
+.section-eyebrow { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 2.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 20px; }
 
-.fields-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 14px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+.field { display: flex; flex-direction: column; gap: 7px; }
 .field.span2 { grid-column: span 2; }
-.field.span3 { grid-column: span 3; }
-
-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 1.5px;
-  color: var(--muted);
-  text-transform: uppercase;
+.field label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px; color: var(--muted2); text-transform: uppercase; }
+.field input {
+  background: var(--s2); border: 1px solid var(--b2); border-radius: 8px;
+  color: var(--text); font-family: var(--mono); font-size: 15px; font-weight: 500;
+  padding: 12px 14px; outline: none; width: 100%;
+  transition: border-color 180ms, box-shadow 180ms;
 }
-
-input, select {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  padding: 10px 12px;
-  transition: border-color var(--transition), background var(--transition);
-  width: 100%;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-}
-input:focus, select:focus {
-  border-color: var(--accent);
-  background: var(--surface3);
-}
-input::placeholder { color: var(--muted); }
-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23777' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-  cursor: pointer;
-}
-select option { background: var(--surface2); }
+.field input::placeholder { color: var(--muted); font-weight: 400; font-size: 13px; }
+.field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,241,53,0.08); }
+.field input[type=number]::-webkit-inner-spin-button { opacity: 0.3; }
 
 .run-btn {
-  width: 100%;
-  margin-top: 20px;
-  padding: 14px;
-  background: var(--accent);
-  color: #0a0a0a;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
-  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 15px 20px;
+  background: var(--accent); color: #080808;
+  border: none; border-radius: 9px;
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: opacity 160ms, transform 120ms;
 }
-.run-btn:hover:not(:disabled) {
-  background: var(--accent2);
-  box-shadow: 0 0 24px rgba(200,241,53,0.25);
-  transform: translateY(-1px);
-}
-.run-btn:disabled {
-  opacity: 0.5; cursor: not-allowed; transform: none;
-}
+.run-btn:hover { opacity: 0.88; }
+.run-btn:active { transform: scale(0.99); }
+.run-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
 
-/* ── Thinking ── */
-.thinking-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 28px;
-  margin-bottom: 24px;
-  display: none;
-}
+/* ── Thinking Panel ── */
+.thinking-panel { display: none; background: var(--s1); border: 1px solid var(--b1); border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; }
 .thinking-panel.active { display: block; }
-.thinking-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  color: var(--accent);
-  text-transform: uppercase;
-  margin-bottom: 20px;
-  display: flex; align-items: center; gap: 10px;
-}
-.spinner {
-  width: 14px; height: 14px;
-  border: 2px solid rgba(200,241,53,0.2);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
+.thinking-header { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; margin-bottom: 18px; }
+.t-step { display: flex; align-items: flex-start; gap: 12px; padding: 6px 0; opacity: 0.35; transition: opacity 300ms; font-size: 13px; color: var(--muted2); }
+.t-step.active { opacity: 1; color: var(--text); }
+.t-step.done { opacity: 0.4; }
+.t-icon { font-family: var(--mono); font-size: 12px; color: var(--muted); width: 14px; flex-shrink: 0; margin-top: 1px; }
+.t-step.active .t-icon { color: var(--accent); }
+.t-step.done .t-icon { color: var(--green); }
+
+/* ── Spinner ── */
+.spinner { display: inline-block; width: 12px; height: 12px; border: 1.5px solid rgba(200,241,53,0.25); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.65s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.thinking-step {
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--muted);
-  opacity: 0.4;
-  transition: opacity 0.4s ease, color 0.4s ease;
-}
-.thinking-step:last-child { border-bottom: none; }
-.thinking-step.done { opacity: 1; color: var(--text); }
-.thinking-step.active { opacity: 1; color: var(--accent); }
-.step-icon { width: 16px; flex-shrink: 0; margin-top: 1px; }
-.step-icon.check { color: var(--green); }
-.step-icon.spin-wrap .spinner { width: 12px; height: 12px; }
-
-/* ── Error box ── */
-.error-box {
-  background: rgba(248,113,113,0.08);
-  border: 1px solid rgba(248,113,113,0.2);
-  border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  margin-bottom: 24px;
-  display: none;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--danger);
-}
+/* ── Error ── */
+.error-box { display: none; background: rgba(248,113,113,0.07); border: 1px solid rgba(248,113,113,0.25); border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; }
 .error-box.active { display: block; }
-.error-title { font-weight: 700; letter-spacing: 1px; margin-bottom: 8px; font-size: 11px; }
+.error-title { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--danger); text-transform: uppercase; margin-bottom: 6px; }
+.error-msg { font-size: 13px; color: rgba(248,113,113,0.85); line-height: 1.6; }
 
 /* ── Output ── */
 #output { display: none; }
 #output.active { display: block; }
 
 /* ── Verdict Banner ── */
-.verdict-banner {
-  border-radius: var(--radius-lg);
-  padding: 24px 28px;
-  margin-bottom: 24px;
-  display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  border: 1px solid transparent;
-}
-.verdict-banner.take {
-  background: rgba(74,222,128,0.08);
-  border-color: rgba(74,222,128,0.2);
-}
-.verdict-banner.lean-take {
-  background: rgba(200,241,53,0.07);
-  border-color: rgba(200,241,53,0.18);
-}
-.verdict-banner.lean-pass {
-  background: rgba(251,146,60,0.07);
-  border-color: rgba(251,146,60,0.18);
-}
-.verdict-banner.pass {
-  background: rgba(248,113,113,0.07);
-  border-color: rgba(248,113,113,0.18);
-}
-.verdict-tag {
-  font-family: var(--font-mono);
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  white-space: nowrap;
-}
-.verdict-banner.take .verdict-tag { color: var(--green); }
-.verdict-banner.lean-take .verdict-tag { color: var(--accent); }
-.verdict-banner.lean-pass .verdict-tag { color: var(--warn); }
-.verdict-banner.pass .verdict-tag { color: var(--danger); }
-.verdict-reason {
-  font-size: 14px;
-  color: var(--text);
-  line-height: 1.5;
-  opacity: 0.85;
-}
-.verdict-risk {
-  text-align: right;
-  flex-shrink: 0;
-}
-.verdict-risk-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-.verdict-risk-val {
-  font-family: var(--font-mono);
-  font-size: 28px;
-  font-weight: 700;
-}
-.verdict-banner.take .verdict-risk-val { color: var(--green); }
-.verdict-banner.lean-take .verdict-risk-val { color: var(--accent); }
-.verdict-banner.lean-pass .verdict-risk-val { color: var(--warn); }
-.verdict-banner.pass .verdict-risk-val { color: var(--danger); }
-.verdict-risk-sub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.verdict-banner { border-radius: 12px; padding: 22px 26px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid; }
+.verdict-banner.take      { background: rgba(74,222,128,0.06);  border-color: rgba(74,222,128,0.25); }
+.verdict-banner.lean-take { background: rgba(200,241,53,0.05);  border-color: rgba(200,241,53,0.2); }
+.verdict-banner.lean-pass { background: rgba(251,146,60,0.06);  border-color: rgba(251,146,60,0.25); }
+.verdict-banner.pass      { background: rgba(248,113,113,0.06); border-color: rgba(248,113,113,0.25); }
+.verdict-left { flex: 1; }
+.verdict-tag { display: inline-block; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; margin-bottom: 10px; }
+.take .verdict-tag      { background: rgba(74,222,128,0.15);  color: var(--green); }
+.lean-take .verdict-tag { background: rgba(200,241,53,0.12);  color: var(--accent); }
+.lean-pass .verdict-tag { background: rgba(251,146,60,0.15);  color: var(--warn); }
+.pass .verdict-tag      { background: rgba(248,113,113,0.15); color: var(--danger); }
+.verdict-reason { font-size: 15px; font-weight: 500; line-height: 1.5; color: var(--text); }
+.verdict-meta { font-family: var(--mono); font-size: 11px; color: var(--muted2); margin-top: 8px; }
+.verdict-meta span { color: var(--text); font-weight: 500; }
+.verdict-right { text-align: right; flex-shrink: 0; }
+.verdict-risk-score { font-family: var(--mono); font-size: 36px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
+.verdict-risk-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted2); margin-top: 4px; }
 
 /* ── Key Numbers ── */
-.key-numbers {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 24px;
-}
-.kn-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  transition: border-color var(--transition);
-}
-.kn-card:hover { border-color: var(--border2); }
-.kn-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 10px;
-}
-.kn-value {
-  font-family: var(--font-mono);
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.5px;
-}
-.kn-value.positive { color: var(--green); }
-.kn-value.negative { color: var(--danger); }
-.kn-sub { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 4px; }
+.key-numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.kn-card { background: var(--s1); border: 1px solid var(--b1); border-radius: 10px; padding: 18px 18px 16px; }
+.kn-label { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 1.8px; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+.kn-value { font-family: var(--mono); font-size: 22px; font-weight: 700; line-height: 1; letter-spacing: -0.5px; margin-bottom: 5px; }
+.kn-value.pos { color: var(--green); }
+.kn-value.neg { color: var(--danger); }
+.kn-value.acc { color: var(--accent); }
+.kn-sub { font-size: 11px; color: var(--muted2); }
 
-/* ── Two-column ── */
-.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-bottom: 24px;
-}
-
-/* ── Panel ── */
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-.panel-header {
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  display: flex; align-items: center; gap: 8px;
-}
-.panel-body { padding: 20px; }
+/* ── Panels ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.panel { background: var(--s1); border: 1px solid var(--b1); border-radius: 10px; overflow: hidden; }
+.panel-header { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 16px 20px; border-bottom: 1px solid var(--b1); }
+.panel-body { padding: 4px 0; }
 
 /* ── Odds Table ── */
 .odds-table { width: 100%; border-collapse: collapse; }
-.odds-table th {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  color: var(--muted);
-  text-transform: uppercase;
-  font-weight: 500;
-  padding: 0 0 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-}
+.odds-table th { font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; padding: 12px 20px 10px; border-bottom: 1px solid var(--b1); text-align: left; }
 .odds-table th:last-child { text-align: right; }
-.odds-table td {
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text);
-  vertical-align: middle;
-}
+.odds-table td { padding: 10px 20px; border-bottom: 1px solid var(--b1); font-family: var(--mono); font-size: 13px; }
 .odds-table tr:last-child td { border-bottom: none; }
 .odds-table td:last-child { text-align: right; }
-.book-name { font-weight: 500; }
+.book-name { color: var(--muted2); font-size: 12px; }
 .book-price { font-weight: 700; }
-.price-diff {
-  display: inline-flex; align-items: center; gap: 3px;
-  font-size: 10px; font-weight: 600;
-  padding: 2px 6px; border-radius: 3px;
-  margin-left: 6px;
-}
-.price-diff.up { color: var(--green); background: rgba(74,222,128,0.1); }
-.price-diff.down { color: var(--danger); background: rgba(248,113,113,0.1); }
-.price-diff.even { color: var(--muted); background: var(--surface2); }
-.player-row td { background: rgba(200,241,53,0.04); }
-.player-row .book-name { color: var(--accent); font-weight: 700; }
+.diff-badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 2px 5px; border-radius: 3px; margin-left: 6px; }
+.diff-badge.up   { color: var(--green);  background: rgba(74,222,128,0.1); }
+.diff-badge.down { color: var(--danger); background: rgba(248,113,113,0.1); }
+.diff-badge.flat { color: var(--muted);  background: var(--s2); }
+.player-row { background: rgba(200,241,53,0.03); }
+.player-row .book-name { color: var(--accent); font-weight: 700; font-size: 12px; }
 .player-row .book-price { color: var(--accent); font-size: 15px; }
 
-/* ── PnL Breakdown ── */
-.pnl-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-}
+/* ── P&L rows ── */
+.pnl-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--b1); }
 .pnl-row:last-child { border-bottom: none; }
-.pnl-label { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
-.pnl-val { font-family: var(--font-mono); font-weight: 600; font-size: 13px; }
+.pnl-label { font-family: var(--mono); font-size: 10px; color: var(--muted2); letter-spacing: 0.5px; }
+.pnl-val { font-family: var(--mono); font-size: 13px; font-weight: 600; }
 .pnl-val.acc { color: var(--accent); }
 .pnl-val.grn { color: var(--green); }
 .pnl-val.red { color: var(--danger); }
 .pnl-val.wrn { color: var(--warn); }
 
 /* ── Risk Meter ── */
-.risk-meter { margin: 20px 20px 20px; }
-.risk-meter-track {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--surface2);
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-.risk-meter-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
-  width: 0%;
-}
-.risk-meter-labels {
-  display: flex; justify-content: space-between;
-  font-family: var(--font-mono); font-size: 9px; color: var(--muted); letter-spacing: 1px;
-}
+.risk-meter { padding: 16px 20px 14px; border-top: 1px solid var(--b1); }
+.risk-track { height: 5px; background: var(--s3); border-radius: 3px; overflow: hidden; margin-bottom: 7px; }
+.risk-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--green), var(--warn), var(--danger)); transition: width 1.1s cubic-bezier(0.16,1,0.3,1); width: 0%; }
+.risk-scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 1px; }
 
 /* ── Scenarios ── */
-.scenarios-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  margin-bottom: 24px;
-}
-.scenario-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  transition: border-color var(--transition);
-}
-.scenario-card:hover { border-color: var(--border2); }
-.scenario-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 10px;
-}
-.scenario-pnl {
-  font-family: var(--font-mono);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  margin-bottom: 8px;
-}
-.scenario-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
-.scenario-card.best { border-top: 2px solid var(--green); }
-.scenario-card.best .scenario-pnl { color: var(--green); }
-.scenario-card.base { border-top: 2px solid var(--accent); }
-.scenario-card.base .scenario-pnl { color: var(--accent); }
-.scenario-card.worst { border-top: 2px solid var(--danger); }
-.scenario-card.worst .scenario-pnl { color: var(--danger); }
+.scenarios-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.sc-card { background: var(--s1); border: 1px solid var(--b1); border-radius: 10px; padding: 18px; transition: border-color 180ms; }
+.sc-card:hover { border-color: var(--b2); }
+.sc-card.best  { border-top: 2px solid var(--green);  }
+.sc-card.base  { border-top: 2px solid var(--accent); }
+.sc-card.worst { border-top: 2px solid var(--danger); }
+.sc-label { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+.sc-pnl { font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+.sc-card.best  .sc-pnl { color: var(--green);  }
+.sc-card.base  .sc-pnl { color: var(--accent); }
+.sc-card.worst .sc-pnl { color: var(--danger); }
+.sc-desc { font-size: 12px; color: var(--muted2); line-height: 1.6; }
 
 /* ── AI Analysis ── */
-.ai-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin-bottom: 24px;
-  overflow: hidden;
-}
-.ai-body {
-  padding: 24px;
-  font-size: 14px;
-  line-height: 1.75;
-  color: rgba(239,239,239,0.85);
-}
-.ai-body p + p { margin-top: 16px; }
+.ai-panel { background: var(--s1); border: 1px solid var(--b1); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.ai-body { padding: 20px 22px; font-size: 14px; line-height: 1.8; color: rgba(239,239,239,0.8); }
+.ai-body p + p { margin-top: 15px; }
 
-/* ── Bottom two col ── */
-.bottom-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.rec-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
+/* ── Bottom row ── */
+.bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rec-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--b1); }
 .rec-row:last-child { border-bottom: none; }
-.rec-row-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
-.rec-row-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
-
-.ctx-item {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-}
+.rec-label { font-family: var(--mono); font-size: 10px; color: var(--muted2); letter-spacing: 0.5px; }
+.rec-val { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.ctx-item { padding: 11px 20px; border-bottom: 1px solid var(--b1); }
 .ctx-item:last-child { border-bottom: none; }
-.ctx-item-label { font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
-.ctx-item-val { font-size: 13px; color: var(--text); line-height: 1.6; opacity: 0.85; }
-
-/* ── Divider ── */
-.divider { height: 1px; background: var(--border); margin: 32px 0; }
+.ctx-label { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+.ctx-val { font-size: 13px; color: rgba(239,239,239,0.8); line-height: 1.6; }
 
 /* ── Responsive ── */
-@media (max-width: 1024px) {
-  .fields-grid { grid-template-columns: repeat(3, 1fr); }
-  .field.span2 { grid-column: span 2; }
-  .key-numbers { grid-template-columns: repeat(2, 1fr); }
-  .two-col { grid-template-columns: 1fr; }
-  .bottom-row { grid-template-columns: 1fr; }
-}
-@media (max-width: 640px) {
-  .fields-grid { grid-template-columns: 1fr 1fr; }
-  .field.span2 { grid-column: span 2; }
+@media (max-width: 900px) {
+  .key-numbers  { grid-template-columns: 1fr 1fr; }
+  .two-col      { grid-template-columns: 1fr; }
+  .bottom-row   { grid-template-columns: 1fr; }
   .scenarios-grid { grid-template-columns: 1fr; }
-  .key-numbers { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 540px) {
+  .fields-grid  { grid-template-columns: 1fr; }
+  .field.span2  { grid-column: span 1; }
+  .verdict-right { display: none; }
 }
 </style>
 </head>
 <body>
 
-<!-- ── Header ── -->
 <header>
   <div class="header-inner">
-    <div class="logo">
+    <div style="display:flex;align-items:center">
       <span class="logo-mark">iBankroll</span>
       <span class="logo-sub">/ Bet Risk Engine</span>
     </div>
     <div class="header-right">
-      <div class="status-dot"></div>
-      <span class="live-tag">LIVE WEB SEARCH ENABLED</span>
+      <div class="dot"></div>
+      <span class="live-badge">LIVE WEB SEARCH</span>
     </div>
   </div>
 </header>
 
 <main>
-  <div class="wrap">
+<div class="wrap">
 
-    <!-- ── Input ── -->
-    <section style="margin-bottom:0">
-      <div class="input-card">
-        <div class="section-label">New Bet Analysis</div>
-
-        <div class="fields-grid">
-          <!-- Row 1 -->
-          <div class="field span2">
-            <label>Matchup / Fixture</label>
-            <input type="text" id="matchup" placeholder="e.g. Lakers vs Celtics" />
-          </div>
-          <div class="field">
-            <label>Market</label>
-            <select id="market">
-              <option value="Moneyline">Moneyline</option>
-              <option value="Spread/Handicap">Spread / Handicap</option>
-              <option value="Total O/U">Total O/U</option>
-              <option value="Player Prop">Player Prop</option>
-              <option value="1X2">1X2</option>
-              <option value="BTTS">BTTS</option>
-              <option value="Correct Score">Correct Score</option>
-              <option value="Parlay">Parlay</option>
-              <option value="Live In-Play">Live In-Play</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Selection</label>
-            <input type="text" id="selection" placeholder="e.g. Lakers -4.5" />
-          </div>
-          <div class="field">
-            <label>Sport</label>
-            <select id="sport">
-              <option value="NBA">NBA</option>
-              <option value="NFL">NFL</option>
-              <option value="EPL">EPL</option>
-              <option value="La Liga">La Liga</option>
-              <option value="UCL">UCL</option>
-              <option value="Serie A">Serie A</option>
-              <option value="Tennis">Tennis</option>
-              <option value="NHL">NHL</option>
-              <option value="MLB">MLB</option>
-              <option value="MMA/UFC">MMA / UFC</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-
-          <!-- Row 2 -->
-          <div class="field">
-            <label>Decimal Odds</label>
-            <input type="number" id="odds" step="0.01" min="1.01" placeholder="e.g. 2.14" />
-          </div>
-          <div class="field">
-            <label>Total Wager ($)</label>
-            <input type="number" id="wager" step="100" min="0" placeholder="e.g. 20000" />
-          </div>
-          <div class="field">
-            <label>Offload % to iBankroll</label>
-            <input type="number" id="offloadPct" step="1" min="0" max="100" value="50" />
-          </div>
-          <div class="field">
-            <label>Your Margin %</label>
-            <input type="number" id="marginPct" step="0.1" min="0" max="30" value="5" />
-          </div>
-        </div>
-
-        <button class="run-btn" id="runBtn" onclick="runAnalysis()">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M6 5.5l4 2.5-4 2.5V5.5z" fill="currentColor"/></svg>
-          RUN FULL ANALYSIS
-        </button>
+  <!-- Input -->
+  <div class="input-card">
+    <div class="section-eyebrow">New Bet Analysis</div>
+    <div class="fields-grid">
+      <div class="field span2">
+        <label>Fixture</label>
+        <input type="text" id="matchup" placeholder="e.g. Man City vs Arsenal, Lakers vs Celtics" autocomplete="off" />
       </div>
-    </section>
-
-    <!-- ── Thinking ── -->
-    <div class="thinking-panel" id="thinkingPanel">
-      <div class="thinking-title">
-        <div class="spinner"></div>
-        ANALYSING BET — PLEASE WAIT
+      <div class="field span2">
+        <label>Selection / Outcome</label>
+        <input type="text" id="selection" placeholder="e.g. Man City to win, Over 2.5 goals, LeBron over 27.5 pts" autocomplete="off" />
       </div>
-      <div id="thinkingSteps">
-        <div class="thinking-step" data-step="0">
-          <div class="step-icon" id="icon-0">◦</div>
-          <span>Searching live odds across Pinnacle, Bet365, DraftKings, FanDuel...</span>
-        </div>
-        <div class="thinking-step" data-step="1">
-          <div class="step-icon" id="icon-1">◦</div>
-          <span>Pulling injury reports and team news...</span>
-        </div>
-        <div class="thinking-step" data-step="2">
-          <div class="step-icon" id="icon-2">◦</div>
-          <span>Analysing line movement and sharp action...</span>
-        </div>
-        <div class="thinking-step" data-step="3">
-          <div class="step-icon" id="icon-3">◦</div>
-          <span>Calculating Kelly criterion, EV and offload recommendation...</span>
-        </div>
-        <div class="thinking-step" data-step="4">
-          <div class="step-icon" id="icon-4">◦</div>
-          <span>Generating commercial verdict...</span>
-        </div>
+      <div class="field">
+        <label>Decimal Odds</label>
+        <input type="number" id="odds" step="0.01" min="1.01" placeholder="e.g. 2.10" />
+      </div>
+      <div class="field">
+        <label>Wager ($)</label>
+        <input type="number" id="wager" step="100" min="1" placeholder="e.g. 20,000" />
+      </div>
+    </div>
+    <button class="run-btn" id="runBtn" onclick="runAnalysis()">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 4.5l4 2.5-4 2.5V4.5z" fill="currentColor"/></svg>
+      Run Full Analysis
+    </button>
+  </div>
+
+  <!-- Thinking -->
+  <div class="thinking-panel" id="thinkingPanel">
+    <div class="thinking-header"><div class="spinner"></div>AI is analysing — please wait</div>
+    <div class="t-step" id="ts0"><span class="t-icon">○</span>Searching live odds across Pinnacle, Bet365, DraftKings, FanDuel...</div>
+    <div class="t-step" id="ts1"><span class="t-icon">○</span>Pulling injury reports and team news...</div>
+    <div class="t-step" id="ts2"><span class="t-icon">○</span>Analysing line movement and sharp money flow...</div>
+    <div class="t-step" id="ts3"><span class="t-icon">○</span>Calculating EV, Kelly criterion and optimal offload strategy...</div>
+    <div class="t-step" id="ts4"><span class="t-icon">○</span>Generating commercial verdict...</div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox">
+    <div class="error-title">⚠ Analysis Error</div>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <!-- Output -->
+  <div id="output">
+
+    <!-- Verdict -->
+    <div class="verdict-banner" id="verdictBanner">
+      <div class="verdict-left">
+        <div class="verdict-tag" id="verdictTag">—</div>
+        <div class="verdict-reason" id="verdictReason"></div>
+        <div class="verdict-meta" id="verdictMeta"></div>
+      </div>
+      <div class="verdict-right">
+        <div class="verdict-risk-score" id="riskScore">—</div>
+        <div class="verdict-risk-label" id="riskLabel">Risk Score</div>
       </div>
     </div>
 
-    <!-- ── Error ── -->
-    <div class="error-box" id="errorBox">
-      <div class="error-title">⚠ ANALYSIS ERROR</div>
-      <div id="errorMsg"></div>
+    <!-- Key Numbers -->
+    <div class="key-numbers">
+      <div class="kn-card">
+        <div class="kn-label">Your Retained Stake</div>
+        <div class="kn-value" id="knRetained">—</div>
+        <div class="kn-sub" id="knRetainedSub"></div>
+      </div>
+      <div class="kn-card">
+        <div class="kn-label">Offloaded to iBankroll</div>
+        <div class="kn-value acc" id="knOffloaded">—</div>
+        <div class="kn-sub" id="knOffloadedSub"></div>
+      </div>
+      <div class="kn-card">
+        <div class="kn-label">Net Profit if Win</div>
+        <div class="kn-value pos" id="knWin">—</div>
+        <div class="kn-sub" id="knWinSub"></div>
+      </div>
+      <div class="kn-card">
+        <div class="kn-label">Net Loss if Lose</div>
+        <div class="kn-value neg" id="knLose">—</div>
+        <div class="kn-sub" id="knLoseSub"></div>
+      </div>
     </div>
 
-    <!-- ── Output ── -->
-    <div id="output">
-
-      <!-- Verdict Banner -->
-      <div class="verdict-banner" id="verdictBanner">
-        <div>
-          <div class="verdict-tag" id="verdictTag">—</div>
-          <div class="verdict-reason" id="verdictReason"></div>
-        </div>
-        <div class="verdict-risk">
-          <div class="verdict-risk-label">Risk Score</div>
-          <div class="verdict-risk-val" id="verdictRiskVal">—</div>
-          <div class="verdict-risk-sub" id="verdictRiskLabel"></div>
-        </div>
-      </div>
-
-      <!-- Key Numbers -->
-      <div class="key-numbers" id="keyNumbers">
-        <div class="kn-card">
-          <div class="kn-label">Your Retained Stake</div>
-          <div class="kn-value" id="knRetained">—</div>
-          <div class="kn-sub" id="knRetainedSub"></div>
-        </div>
-        <div class="kn-card">
-          <div class="kn-label">Offloaded to iBankroll</div>
-          <div class="kn-value accent" id="knOffloaded" style="color:var(--accent)">—</div>
-          <div class="kn-sub" id="knOffloadedSub"></div>
-        </div>
-        <div class="kn-card">
-          <div class="kn-label">Net Profit if Win</div>
-          <div class="kn-value positive" id="knNetWin">—</div>
-          <div class="kn-sub" id="knNetWinSub"></div>
-        </div>
-        <div class="kn-card">
-          <div class="kn-label">Net Loss if Lose</div>
-          <div class="kn-value negative" id="knNetLose">—</div>
-          <div class="kn-sub" id="knNetLoseSub"></div>
-        </div>
-      </div>
-
-      <!-- Odds + PnL -->
-      <div class="two-col">
-        <!-- Market Odds -->
-        <div class="panel">
-          <div class="panel-header">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="4" x2="4" y2="8" stroke="currentColor" stroke-width="1.2"/><line x1="6" y1="3" x2="6" y2="8" stroke="currentColor" stroke-width="1.2"/><line x1="8" y1="5" x2="8" y2="8" stroke="currentColor" stroke-width="1.2"/></svg>
-            Market Odds Comparison
-          </div>
-          <div class="panel-body" style="padding:0">
-            <table class="odds-table" style="padding:0 20px;width:100%">
-              <thead style="padding:0 20px">
-                <tr style="padding:0 20px">
-                  <th style="padding-left:20px;padding-top:14px">Book</th>
-                  <th style="padding-right:20px;text-align:right;padding-top:14px">Price</th>
-                </tr>
-              </thead>
-              <tbody id="oddsTableBody">
-                <!-- injected -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- PnL + Risk Meter -->
-        <div class="panel">
-          <div class="panel-header">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 9l3-3 2 2 3-4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            P&amp;L Breakdown
-          </div>
-          <div class="panel-body" id="pnlBody">
-            <!-- injected -->
-          </div>
-          <div class="risk-meter">
-            <div class="risk-meter-track">
-              <div class="risk-meter-fill" id="riskMeterFill"></div>
-            </div>
-            <div class="risk-meter-labels">
-              <span>Low Risk</span>
-              <span id="riskMeterLabel">—</span>
-              <span>Very High</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Scenarios -->
-      <div class="section-label" style="margin-bottom:14px">Outcome Scenarios</div>
-      <div class="scenarios-grid" id="scenariosGrid">
-        <!-- injected -->
-      </div>
-
-      <!-- AI Analysis -->
-      <div class="ai-panel">
+    <!-- Odds + PnL -->
+    <div class="two-col">
+      <div class="panel">
         <div class="panel-header">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3v3l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-          AI Analysis
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="0.75" y="0.75" width="9.5" height="9.5" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="3.5" y1="3.5" x2="3.5" y2="7.5" stroke="currentColor" stroke-width="1.2"/><line x1="5.5" y1="2.5" x2="5.5" y2="7.5" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="4.5" x2="7.5" y2="7.5" stroke="currentColor" stroke-width="1.2"/></svg>
+          Market Odds Comparison
         </div>
-        <div class="ai-body" id="aiBody">
-          <!-- injected -->
+        <table class="odds-table">
+          <thead><tr><th>Book</th><th>Price</th></tr></thead>
+          <tbody id="oddsTbody"></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 8.5l2.5-3 2 2 3-4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          P&amp;L Breakdown
+        </div>
+        <div id="pnlRows"></div>
+        <div class="risk-meter">
+          <div class="risk-track"><div class="risk-fill" id="riskFill"></div></div>
+          <div class="risk-scale"><span>Low</span><span id="riskFillLabel">—</span><span>Very High</span></div>
         </div>
       </div>
+    </div>
 
-      <!-- Bottom Row -->
-      <div class="bottom-row">
-        <div class="panel">
-          <div class="panel-header">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1l1.5 3 3.5.5-2.5 2.5.5 3.5L6 9l-3 1.5.5-3.5L1 4.5 4.5 4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-            AI Recommendation
-          </div>
-          <div class="panel-body" id="recBody">
-            <!-- injected -->
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-header">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="2" fill="currentColor" opacity="0.4"/></svg>
-            Match Context
-          </div>
-          <div class="panel-body" id="ctxBody">
-            <!-- injected -->
-          </div>
-        </div>
+    <!-- Scenarios -->
+    <div class="scenarios-grid" id="scenariosGrid"></div>
+
+    <!-- AI Analysis -->
+    <div class="ai-panel">
+      <div class="panel-header">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 2.5v3l1.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Trading Desk Analysis
       </div>
+      <div class="ai-body" id="aiBody"></div>
+    </div>
 
-    </div><!-- /#output -->
-  </div><!-- /.wrap -->
+    <!-- Bottom Row -->
+    <div class="bottom-row">
+      <div class="panel">
+        <div class="panel-header">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1l1.3 2.7 3 .4-2.2 2.1.5 3L5.5 8 3 9.2l.5-3L1.3 4.1l3-.4z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+          AI Recommendation
+        </div>
+        <div id="recRows"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="5.5" r="1.5" fill="currentColor" opacity="0.4"/></svg>
+          Match Context
+        </div>
+        <div id="ctxRows"></div>
+      </div>
+    </div>
+
+  </div><!-- /#output -->
+</div><!-- /.wrap -->
 </main>
 
 <script>
-// ── Utilities ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 
-function fmtMoney(n, showPlus = false) {
-  const abs = Math.abs(n);
-  const str = abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const sign = n < 0 ? '-$' : (showPlus && n > 0 ? '+$' : '$');
-  return sign + str;
+// ── Formatting ────────────────────────────────────────────────────────────────
+function money(n, plus) {
+  const s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  if (n < 0) return '-$' + s;
+  return (plus && n > 0 ? '+$' : '$') + s;
+}
+function pct(n, d=1) { return (n * 100).toFixed(d) + '%'; }
+function dp(n, d=2) { return parseFloat(n).toFixed(d); }
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function fmtPct(n, decimals = 1) {
-  return (n * 100).toFixed(decimals) + '%';
-}
-
-function fmtOdds(n) {
-  return parseFloat(n).toFixed(2);
-}
-
-// ── Thinking animation ───────────────────────────────────────────────────────
-let thinkingTimer = null;
-const STEP_DURATIONS = [6000, 10000, 8000, 5000, 5000]; // ~34s total
+// ── Thinking steps ────────────────────────────────────────────────────────────
+const STEP_MS = [7000, 9000, 7000, 6000, 5000];
+let thinkTimer;
 
 function startThinking() {
-  const panel = $('thinkingPanel');
-  panel.classList.add('active');
-  const steps = panel.querySelectorAll('.thinking-step');
-  steps.forEach(s => {
-    s.classList.remove('done', 'active');
-    const i = s.dataset.step;
-    $(`icon-${i}`).textContent = '◦';
-    $(`icon-${i}`).className = 'step-icon';
-  });
-
-  let currentStep = 0;
-
-  function activateStep(i) {
-    if (i >= steps.length) return;
-    steps[i].classList.add('active');
-    $(`icon-${i}`).innerHTML = '<div class="spin-wrap"><div class="spinner"></div></div>';
-    $(`icon-${i}`).className = 'step-icon spin-wrap';
-
-    thinkingTimer = setTimeout(() => {
-      steps[i].classList.remove('active');
-      steps[i].classList.add('done');
-      $(`icon-${i}`).textContent = '✓';
-      $(`icon-${i}`).className = 'step-icon check';
-      currentStep++;
-      activateStep(currentStep);
-    }, STEP_DURATIONS[i] || 5000);
+  $('thinkingPanel').classList.add('active');
+  for (let i = 0; i < 5; i++) {
+    $(`ts${i}`).className = 't-step';
+    $(`ts${i}`).querySelector('.t-icon').textContent = '○';
   }
-
-  activateStep(0);
+  let acc = 0;
+  STEP_MS.forEach((ms, i) => {
+    setTimeout(() => {
+      if (i > 0) {
+        $(`ts${i-1}`).classList.replace('active','done') || $(`ts${i-1}`).classList.add('done');
+        $(`ts${i-1}`).querySelector('.t-icon').textContent = '✓';
+      }
+      $(`ts${i}`).classList.add('active');
+      $(`ts${i}`).querySelector('.t-icon').textContent = '›';
+    }, acc);
+    acc += ms;
+  });
 }
 
 function stopThinking() {
-  clearTimeout(thinkingTimer);
+  clearTimeout(thinkTimer);
   $('thinkingPanel').classList.remove('active');
-  const steps = $('thinkingPanel').querySelectorAll('.thinking-step');
-  steps.forEach(s => {
-    s.classList.remove('done', 'active');
-  });
 }
 
-// ── Calculate financials ─────────────────────────────────────────────────────
-function calcFinancials(odds, wager, offloadPct, marginPct) {
-  const retained  = wager * (1 - offloadPct / 100);
-  const offloaded = wager * (offloadPct / 100);
-  const ibOdds    = odds * (1 - marginPct / 100);
-  const netWin    = offloaded * (ibOdds - 1) - wager * (odds - 1) + wager;
-  const netLose   = retained;
-  const ev        = (1 / odds) * netWin - (1 - 1 / odds) * retained;
-  return { retained, offloaded, ibOdds, netWin, netLose, ev };
+// ── Error helpers ──────────────────────────────────────────────────────────────
+function showError(msg) {
+  $('errorMsg').textContent = msg;
+  $('errorBox').classList.add('active');
 }
+function hideError() { $('errorBox').classList.remove('active'); }
 
-// ── Main run ─────────────────────────────────────────────────────────────────
+// ── Run analysis ──────────────────────────────────────────────────────────────
 async function runAnalysis() {
-  // Read form
   const matchup   = $('matchup').value.trim();
-  const sport     = $('sport').value;
-  const market    = $('market').value;
   const selection = $('selection').value.trim();
   const odds      = parseFloat($('odds').value);
   const wager     = parseFloat($('wager').value);
-  const offloadPct = parseFloat($('offloadPct').value);
-  const marginPct  = parseFloat($('marginPct').value);
 
-  // Validate
-  const errors = [];
-  if (!matchup) errors.push('Matchup / Fixture is required.');
-  if (!selection) errors.push('Selection is required.');
-  if (isNaN(odds) || odds < 1.01) errors.push('Decimal Odds must be ≥ 1.01.');
-  if (isNaN(wager) || wager <= 0) errors.push('Total Wager must be > 0.');
-  if (isNaN(offloadPct) || offloadPct < 0 || offloadPct > 100) errors.push('Offload % must be 0–100.');
-  if (isNaN(marginPct) || marginPct < 0 || marginPct > 30) errors.push('Margin % must be 0–30.');
-
-  if (errors.length) {
-    showError(errors.join(' '));
-    return;
-  }
+  if (!matchup)          return showError('Please enter the fixture.');
+  if (!selection)        return showError('Please enter your selection.');
+  if (isNaN(odds) || odds < 1.01) return showError('Odds must be a decimal ≥ 1.01 (e.g. 2.10).');
+  if (isNaN(wager) || wager <= 0) return showError('Please enter a valid wager amount.');
 
   hideError();
   $('output').classList.remove('active');
   $('runBtn').disabled = true;
   startThinking();
 
-  const calcs = calcFinancials(odds, wager, offloadPct, marginPct);
-
   try {
     const resp = await fetch('/api/analyse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        matchup, sport, market, selection,
-        odds, wager, offloadPct, marginPct,
-        ...calcs,
-      }),
+      body: JSON.stringify({ matchup, selection, odds, wager }),
     });
 
-    const json = await resp.json();
+    let json;
+    try {
+      json = await resp.json();
+    } catch (e) {
+      throw new Error('Server returned an unexpected response. Check that ANTHROPIC_API_KEY is set in Vercel environment variables.');
+    }
+
     stopThinking();
 
     if (!json.success) {
-      showError(json.error || 'Unknown server error.');
+      showError(json.error || 'Unknown error from server.');
       $('runBtn').disabled = false;
       return;
     }
 
-    renderOutput(json.data, calcs, { odds, wager, offloadPct, marginPct });
+    renderOutput(json.data);
     $('output').classList.add('active');
-    $('output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => $('output').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
   } catch (err) {
     stopThinking();
-    showError('Network error: ' + (err.message || 'Could not reach server.'));
+    showError(err.message || 'Network error — could not reach server.');
   }
 
   $('runBtn').disabled = false;
 }
 
-// ── Error helpers ────────────────────────────────────────────────────────────
-function showError(msg) {
-  $('errorMsg').textContent = msg;
-  $('errorBox').classList.add('active');
-}
-function hideError() {
-  $('errorBox').classList.remove('active');
-}
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderOutput(d) {
+  const odds   = d.inputOdds;
+  const wager  = d.inputWager;
+  const offPct = d.recommendedOffload || 50;
+  const marPct = d.recommendedMargin  || 5;
 
-// ── Render output ────────────────────────────────────────────────────────────
-function renderOutput(data, calcs, inputs) {
-  const { odds, wager, offloadPct, marginPct } = inputs;
-  const { retained, offloaded, ibOdds, netWin, netLose, ev } = calcs;
+  // Use AI-calculated values or fall back to computing them
+  const retained  = d.retained  ?? wager * (1 - offPct / 100);
+  const offloaded = d.offloaded ?? wager * (offPct / 100);
+  const ibOdds    = d.ibOdds    ?? odds * (1 - marPct / 100);
+  const netWin    = d.netWin    ?? (offloaded * (ibOdds - 1) - wager * (odds - 1) + wager);
+  const netLose   = d.netLose   ?? retained;
+  const ev        = d.ev        ?? ((1 / odds) * netWin - (1 - 1 / odds) * retained);
 
-  // ── Verdict Banner ──
-  const cls = {
-    'TAKE': 'take',
-    'LEAN_TAKE': 'lean-take',
-    'LEAN_PASS': 'lean-pass',
-    'PASS': 'pass',
-  }[data.verdict] || 'pass';
+  // ── Verdict ──
+  const cls = { TAKE:'take', LEAN_TAKE:'lean-take', LEAN_PASS:'lean-pass', PASS:'pass' }[d.verdict] || 'lean-pass';
+  const label = { TAKE:'Take It', LEAN_TAKE:'Lean Take', LEAN_PASS:'Lean Pass', PASS:'Pass' }[d.verdict] || d.verdict;
+  const riskColor = d.riskScore < 35 ? 'var(--green)' : d.riskScore < 65 ? 'var(--warn)' : 'var(--danger)';
 
-  const vb = $('verdictBanner');
-  vb.className = `verdict-banner ${cls}`;
-  $('verdictTag').textContent = data.verdict.replace('_', ' ');
-  $('verdictReason').textContent = data.verdictReason || '';
-  $('verdictRiskVal').textContent = data.riskScore;
-  $('verdictRiskLabel').textContent = (data.riskLabel || '').toUpperCase();
+  $('verdictBanner').className = `verdict-banner ${cls}`;
+  $('verdictTag').textContent  = label;
+  $('verdictReason').textContent = d.verdictReason || '';
+  $('verdictMeta').innerHTML = [
+    d.detectedSport  ? `Sport: <span>${esc(d.detectedSport)}</span>`  : '',
+    d.detectedMarket ? `Market: <span>${esc(d.detectedMarket)}</span>` : '',
+    `AI Offload: <span>${offPct}%</span>`,
+    `AI Margin: <span>${marPct}%</span>`,
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  $('riskScore').textContent = d.riskScore || '—';
+  $('riskScore').style.color = riskColor;
+  $('riskLabel').textContent = (d.riskLabel || '').toUpperCase() + ' RISK';
 
   // ── Key Numbers ──
-  $('knRetained').textContent = fmtMoney(retained);
-  $('knRetainedSub').textContent = `${(100 - offloadPct).toFixed(0)}% of total wager`;
-  $('knOffloaded').textContent = fmtMoney(offloaded);
-  $('knOffloadedSub').textContent = `${offloadPct.toFixed(0)}% to iBankroll @ ${fmtOdds(ibOdds)}`;
-  $('knNetWin').textContent = fmtMoney(netWin, true);
-  $('knNetWinSub').textContent = 'After iBankroll payout';
-  $('knNetLose').textContent = '-' + fmtMoney(netLose);
-  $('knNetLoseSub').textContent = 'Max retained exposure';
+  $('knRetained').textContent   = money(retained);
+  $('knRetainedSub').textContent = `${(100 - offPct).toFixed(0)}% retained on our book`;
+  $('knOffloaded').textContent  = money(offloaded);
+  $('knOffloadedSub').textContent = `${offPct}% laid off @ ${dp(ibOdds)} odds`;
+  $('knWin').textContent        = money(netWin, true);
+  $('knWinSub').textContent     = 'Net after iBankroll payout';
+  $('knLose').textContent       = '-' + money(netLose);
+  $('knLoseSub').textContent    = 'Max retained exposure';
+  $('knWin').className  = 'kn-value ' + (netWin >= 0 ? 'pos' : 'neg');
 
   // ── Odds Table ──
-  const playerPrice = parseFloat(odds);
-  const marketOdds = data.marketOdds || [];
-  const bestMarketPrice = Math.max(...marketOdds.map(o => o.price), 0);
-
-  let oddsHTML = `<tr class="player-row">
-    <td style="padding-left:20px"><span class="book-name">Your Price</span></td>
-    <td style="padding-right:20px">
-      <span class="book-price">${fmtOdds(playerPrice)}</span>
-      ${renderDiff(playerPrice, bestMarketPrice)}
-    </td>
+  const mktOdds = d.marketOdds || [];
+  const bestMkt = mktOdds.reduce((m, o) => Math.max(m, o.price), 0);
+  let rows = `<tr class="player-row">
+    <td><span class="book-name">Your Price</span></td>
+    <td><span class="book-price">${dp(odds)}</span>${diffBadge(odds, bestMkt)}</td>
   </tr>`;
-
-  marketOdds.forEach(o => {
-    oddsHTML += `<tr>
-      <td style="padding-left:20px"><span class="book-name">${escHtml(o.book)}</span></td>
-      <td style="padding-right:20px">
-        <span class="book-price">${fmtOdds(o.price)}</span>
-        ${renderDiff(o.price, playerPrice)}
-      </td>
+  mktOdds.forEach(o => {
+    rows += `<tr>
+      <td><span class="book-name">${esc(o.book)}</span></td>
+      <td><span class="book-price">${dp(o.price)}</span>${diffBadge(o.price, odds)}</td>
     </tr>`;
   });
+  $('oddsTbody').innerHTML = rows;
 
-  $('oddsTableBody').innerHTML = oddsHTML;
-
-  // ── PnL Breakdown ──
-  const fairOdds  = data.fairOdds || odds;
-  const impliedP  = data.impliedProb || (1 / odds);
-  const breakEven = data.breakEvenProb || (1 / odds);
-  const edgeVsM   = data.edgeVsMarket || 0;
-
-  $('pnlBody').innerHTML = `
-    <div class="pnl-row"><span class="pnl-label">iBankroll Price</span><span class="pnl-val acc">${fmtOdds(ibOdds)}</span></div>
-    <div class="pnl-row"><span class="pnl-label">Payment if Win</span><span class="pnl-val grn">+${fmtMoney(netWin)}</span></div>
-    <div class="pnl-row"><span class="pnl-label">Payment if Lose</span><span class="pnl-val red">-${fmtMoney(netLose)}</span></div>
-    <div class="pnl-row"><span class="pnl-label">Expected Value (EV)</span><span class="pnl-val ${ev >= 0 ? 'grn' : 'red'}">${fmtMoney(ev, true)}</span></div>
-    <div class="pnl-row"><span class="pnl-label">Break-Even Prob</span><span class="pnl-val">${fmtPct(breakEven, 2)}</span></div>
-    <div class="pnl-row"><span class="pnl-label">AI Fair Probability</span><span class="pnl-val acc">${fmtPct(impliedP, 2)}</span></div>
-    <div class="pnl-row"><span class="pnl-label">Edge vs Market</span><span class="pnl-val ${edgeVsM >= 0 ? 'grn' : 'red'}">${(edgeVsM >= 0 ? '+' : '') + (edgeVsM * 100).toFixed(2)}%</span></div>
-  `;
+  // ── P&L ──
+  const edgeVsM = d.edgeVsMarket || 0;
+  $('pnlRows').innerHTML = [
+    ['iBankroll Price',     `<span class="pnl-val acc">${dp(ibOdds)}</span>`],
+    ['Net if Win',          `<span class="pnl-val ${netWin>=0?'grn':'red'}">${money(netWin,true)}</span>`],
+    ['Net if Lose',         `<span class="pnl-val red">-${money(netLose)}</span>`],
+    ['Expected Value',      `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
+    ['Break-Even Prob',     `<span class="pnl-val">${pct(d.breakEvenProb||1/odds,2)}</span>`],
+    ['AI Fair Probability', `<span class="pnl-val acc">${pct(d.impliedProb||1/odds,2)}</span>`],
+    ['Edge vs Market',      `<span class="pnl-val ${edgeVsM>=0?'grn':'red'}">${(edgeVsM>=0?'+':'')+(edgeVsM*100).toFixed(2)}%</span>`],
+  ].map(([l,v]) => `<div class="pnl-row"><span class="pnl-label">${l}</span>${v}</div>`).join('');
 
   // ── Risk Meter ──
-  const riskScore = data.riskScore || 50;
-  const riskColor = riskScore < 30 ? 'var(--green)' : riskScore < 60 ? 'var(--warn)' : 'var(--danger)';
-  const fill = $('riskMeterFill');
-  fill.style.background = `linear-gradient(90deg, var(--green), var(--warn), var(--danger))`;
-  fill.style.width = '0%';
-  $('riskMeterLabel').textContent = `${riskScore}/100`;
-  setTimeout(() => { fill.style.width = riskScore + '%'; }, 100);
+  const rs = d.riskScore || 50;
+  $('riskFill').style.width = '0%';
+  setTimeout(() => { $('riskFill').style.width = rs + '%'; }, 80);
+  $('riskFillLabel').textContent = `${rs}/100`;
+  $('riskFillLabel').style.color = riskColor;
 
   // ── Scenarios ──
-  const scenarios = data.scenarios || [];
-  const scLabels  = ['best', 'base', 'worst'];
-  $('scenariosGrid').innerHTML = scenarios.map((s, i) => `
-    <div class="scenario-card ${scLabels[i] || ''}">
-      <div class="scenario-label">${escHtml(s.label)}</div>
-      <div class="scenario-pnl">${fmtMoney(s.pnl, true)}</div>
-      <div class="scenario-desc">${escHtml(s.desc)}</div>
-    </div>
-  `).join('');
+  const sc = d.scenarios || [];
+  const scCls = ['best','base','worst'];
+  $('scenariosGrid').innerHTML = sc.map((s,i) =>
+    `<div class="sc-card ${scCls[i]||''}">
+      <div class="sc-label">${esc(s.label)}</div>
+      <div class="sc-pnl">${money(s.pnl,true)}</div>
+      <div class="sc-desc">${esc(s.desc)}</div>
+    </div>`
+  ).join('');
 
   // ── AI Analysis ──
-  const paragraphs = (data.aiAnalysis || '').split('\n\n').filter(Boolean);
-  $('aiBody').innerHTML = paragraphs.map(p => `<p>${escHtml(p)}</p>`).join('');
+  $('aiBody').innerHTML = (d.aiAnalysis||'').split('\n\n').filter(Boolean)
+    .map(p => `<p>${esc(p)}</p>`).join('');
 
   // ── Recommendation ──
-  const kelly  = data.kellyFraction || 0;
-  const clv    = data.clv || 0;
-  $('recBody').innerHTML = `
-    <div class="rec-row"><span class="rec-row-label">Optimal Offload %</span><span class="rec-row-val" style="color:var(--accent)">${data.optimalOffload || offloadPct}%</span></div>
-    <div class="rec-row"><span class="rec-row-label">Suggested Max Wager</span><span class="rec-row-val">${fmtMoney(data.suggestedMaxWager || wager)}</span></div>
-    <div class="rec-row"><span class="rec-row-label">Kelly Fraction</span><span class="rec-row-val">${(kelly * 100).toFixed(2)}%</span></div>
-    <div class="rec-row"><span class="rec-row-label">Closing Line Value</span><span class="rec-row-val ${clv >= 0 ? '' : ''}" style="color:${clv >= 0 ? 'var(--green)' : 'var(--danger)'}">${(clv >= 0 ? '+' : '') + (clv * 100).toFixed(2)}%</span></div>
-    <div class="rec-row"><span class="rec-row-label">Edge vs Market</span><span class="rec-row-val" style="color:${edgeVsM >= 0 ? 'var(--green)' : 'var(--danger)'}">${(edgeVsM >= 0 ? '+' : '') + (edgeVsM * 100).toFixed(2)}%</span></div>
-    <div class="rec-row"><span class="rec-row-label">Risk Score</span><span class="rec-row-val" style="color:${riskColor}">${riskScore} / 100 — ${escHtml(data.riskLabel || '')}</span></div>
-  `;
+  const kelly = d.kellyFraction || 0;
+  const clv   = d.clv || 0;
+  $('recRows').innerHTML = [
+    ['AI Offload %',       `<span class="rec-val" style="color:var(--accent)">${offPct}%</span>`],
+    ['AI Margin %',        `<span class="rec-val" style="color:var(--accent)">${marPct}%</span>`],
+    ['Suggested Max Wager',`<span class="rec-val">${money(d.suggestedMaxWager||wager)}</span>`],
+    ['Kelly Fraction',     `<span class="rec-val">${(kelly*100).toFixed(2)}%</span>`],
+    ['Closing Line Value', `<span class="rec-val" style="color:${clv>=0?'var(--green)':'var(--danger)'}">${(clv>=0?'+':'')+(clv*100).toFixed(2)}%</span>`],
+    ['Optimal Offload',    `<span class="rec-val">${d.optimalOffload||offPct}%</span>`],
+    ['Risk Score',         `<span class="rec-val" style="color:${riskColor}">${d.riskScore}/100 — ${esc(d.riskLabel)}</span>`],
+  ].map(([l,v]) => `<div class="rec-row"><span class="rec-label">${l}</span>${v}</div>`).join('');
 
-  // ── Match Context ──
-  $('ctxBody').innerHTML = `
-    <div class="ctx-item"><div class="ctx-item-label">Recent Form</div><div class="ctx-item-val">${escHtml(data.recentForm || '—')}</div></div>
-    <div class="ctx-item"><div class="ctx-item-label">Line Movement</div><div class="ctx-item-val">${escHtml(data.lineMovement || '—')}</div></div>
-    <div class="ctx-item"><div class="ctx-item-label">Sharp Action</div><div class="ctx-item-val">${escHtml(data.sharpAction || '—')}</div></div>
-    <div class="ctx-item"><div class="ctx-item-label">Public vs Sharp Split</div><div class="ctx-item-val">${escHtml(data.publicVsSharp || '—')}</div></div>
-    <div class="ctx-item"><div class="ctx-item-label">Weather / Injuries</div><div class="ctx-item-val">${escHtml(data.weatherInjuries || '—')}</div></div>
-    <div class="ctx-item"><div class="ctx-item-label">Key Risks</div><div class="ctx-item-val">${escHtml(data.keyRisks || '—')}</div></div>
-  `;
+  // ── Context ──
+  const ctx = [
+    ['Recent Form',         d.recentForm],
+    ['Line Movement',       d.lineMovement],
+    ['Sharp Action',        d.sharpAction],
+    ['Public vs Sharp',     d.publicVsSharp],
+    ['Injuries / News',     d.weatherInjuries],
+    ['Key Risks',           d.keyRisks],
+  ];
+  $('ctxRows').innerHTML = ctx.filter(([,v])=>v).map(([l,v]) =>
+    `<div class="ctx-item"><div class="ctx-label">${l}</div><div class="ctx-val">${esc(v)}</div></div>`
+  ).join('');
 }
 
-function renderDiff(price, ref) {
-  if (!ref || ref === 0) return '';
-  const diff = price - ref;
-  if (Math.abs(diff) < 0.005) return `<span class="price-diff even">~</span>`;
-  if (diff > 0) return `<span class="price-diff up">▲ ${diff.toFixed(2)}</span>`;
-  return `<span class="price-diff down">▼ ${Math.abs(diff).toFixed(2)}</span>`;
+function diffBadge(price, ref) {
+  if (!ref) return '';
+  const d = price - ref;
+  if (Math.abs(d) < 0.005) return `<span class="diff-badge flat">~</span>`;
+  return d > 0
+    ? `<span class="diff-badge up">+${d.toFixed(2)}</span>`
+    : `<span class="diff-badge down">${d.toFixed(2)}</span>`;
 }
 
-function escHtml(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-// ── Enter key on inputs ───────────────────────────────────────────────────────
-document.querySelectorAll('input').forEach(el => {
-  el.addEventListener('keydown', e => { if (e.key === 'Enter') runAnalysis(); });
+// Enter key submits
+['matchup','selection','odds','wager'].forEach(id => {
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') runAnalysis(); });
 });
 </script>
 </body>
