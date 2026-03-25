@@ -622,7 +622,13 @@ async function runAnalysis() {
     try {
       json = await resp.json();
     } catch (e) {
-      throw new Error('Server returned an unexpected response. Check that ANTHROPIC_API_KEY is set in Vercel environment variables.');
+      if (resp.status === 504 || resp.status === 502) {
+        throw new Error('Analysis timed out — the AI took too long. Please try again.');
+      }
+      if (resp.status === 500) {
+        throw new Error('Server error (500). Check that ANTHROPIC_API_KEY is set in Vercel environment variables.');
+      }
+      throw new Error(`Unexpected server response (HTTP ${resp.status}). Please try again.`);
     }
 
     stopThinking();

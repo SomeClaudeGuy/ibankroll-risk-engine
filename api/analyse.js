@@ -164,8 +164,8 @@ Respond ONLY with a valid JSON object. No markdown fences. No extra text. No com
     console.log(`[analyse] Running analysis...`);
 
     const analysisResponse = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 4096,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
       messages: [{ role: 'user', content: analysisPrompt }],
     });
 
