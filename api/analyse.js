@@ -14,6 +14,134 @@ function parseJSON(raw) {
   return JSON.parse(match[0]);
 }
 
+async function callClaude(prompt, maxTokens) {
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: maxTokens,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  return parseJSON(extractText(response.content));
+}
+
+// ── Phase 1: Market Intelligence ─────────────────────────────────────────────
+async function phase1(matchup, selection, oddsNum) {
+  const prompt = `You are a senior sports odds analyst. Assess this selection using your knowledge of current markets.
+
+Fixture:   ${matchup}
+Selection: ${selection}
+Our price: ${oddsNum} (decimal)
+
+Return ONLY this JSON (no markdown, no text outside JSON):
+{
+  "detectedSport": "string",
+  "detectedMarket": "string",
+  "fairOdds": number,
+  "fairWinProb": number,
+  "edgeVsMarket": number,
+  "marketOdds": [
+    {"book": "Pinnacle",   "price": number},
+    {"book": "Bet365",     "price": number},
+    {"book": "DraftKings", "price": number},
+    {"book": "FanDuel",    "price": number},
+    {"book": "PointsBet",  "price": number}
+  ],
+  "sharpOrRec": "sharp" | "recreational" | "unknown",
+  "recentForm": "2 sentences on recent form and H2H",
+  "lineMovement": "1 sentence on expected line direction",
+  "sharpAction": "1 sentence on sharp vs public split",
+  "weatherInjuries": "1 sentence on injuries or conditions (N/A if none)"
+}`;
+  return callClaude(prompt, 600);
+}
+
+// ── Phase 2: Risk & Offload ──────────────────────────────────────────────────
+async function phase2(matchup, selection, oddsNum, wagerNum, lossbackPct, lossbackAmt, p1) {
+  const prompt = `You are a bookmaker risk manager. Recommend offload % and calculate P&L.
+
+Fixture:       ${matchup}
+Selection:     ${selection}
+Client odds:   ${oddsNum}
+Client stake:  $${wagerNum.toLocaleString('en-US')}
+Lossback:      ${lossbackPct > 0 ? `${lossbackPct}% = $${lossbackAmt.toFixed(2)} refunded to client if they LOSE` : 'None'}
+
+MARKET CONTEXT (from Phase 1):
+Sport/Market:  ${p1.detectedSport} / ${p1.detectedMarket}
+Fair odds:     ${p1.fairOdds}  |  Fair win prob: ${(p1.fairWinProb*100).toFixed(1)}%
+Edge vs market: ${((p1.edgeVsMarket||0)*100).toFixed(2)}%
+Bettor profile: ${p1.sharpOrRec}
+Line movement:  ${p1.lineMovement}
+
+OFFLOAD SCORING:
+Stake $${wagerNum.toLocaleString('en-US')}: ${wagerNum < 5000 ? '0-15% base offload' : wagerNum < 15000 ? '20-40% base offload' : wagerNum < 30000 ? '40-60% base offload' : '60-80% base offload'}
+Bettor sharp: ${p1.sharpOrRec === 'sharp' ? '+15%' : p1.sharpOrRec === 'recreational' ? '-10%' : '+5%'}
+Coin-flip match (45-55% prob): ${p1.fairWinProb >= 0.45 && p1.fairWinProb <= 0.55 ? '+10%' : '0%'}
+Client has edge on us (fairWinProb > 1/clientOdds): ${p1.fairWinProb > 1/oddsNum ? 'YES → +15%' : 'NO → 0%'}
+
+FORMULAS (use recommended offload %):
+retained   = ${wagerNum} × (1 − offload/100)
+offloaded  = ${wagerNum} × (offload/100)
+netLose    = retained − ${lossbackAmt.toFixed(2)}
+netWin     = −(retained × (${oddsNum}−1))
+ev         = (1−${p1.fairWinProb.toFixed(4)}) × netLose + ${p1.fairWinProb.toFixed(4)} × netWin
+
+Return ONLY this JSON:
+{
+  "recommendedOffload": integer,
+  "retained": number,
+  "offloaded": number,
+  "netLose": number,
+  "netWin": number,
+  "ev": number,
+  "riskScore": integer 1-100,
+  "riskLabel": "Low" | "Moderate" | "High" | "Very High",
+  "suggestedMaxWager": number,
+  "kellyFraction": number,
+  "clv": number,
+  "keyRisks": "2-3 specific risks to our book on this bet",
+  "offloadReasoning": "2 sentences explaining exactly why this offload % was chosen"
+}`;
+  return callClaude(prompt, 500);
+}
+
+// ── Phase 3: Verdict ──────────────────────────────────────────────────────────
+async function phase3(matchup, selection, oddsNum, wagerNum, lossbackPct, p1, p2) {
+  const grossExp   = p2.retained * oddsNum;
+  const ibPayout   = p2.offloaded * oddsNum;
+  const breakEven  = p2.netLose / (p2.retained * oddsNum - (wagerNum * lossbackPct / 100));
+
+  const prompt = `You are a bookmaker commercial director. Give the final verdict on accepting this bet.
+
+Fixture:    ${matchup}
+Selection:  ${selection} @ ${oddsNum}
+Stake:      $${wagerNum.toLocaleString('en-US')}
+
+RISK SUMMARY:
+Fair win prob:      ${(p1.fairWinProb*100).toFixed(1)}%  (client implied: ${(100/oddsNum).toFixed(1)}%)
+Edge for us:        ${p1.fairWinProb < 1/oddsNum ? 'YES — client is paying above fair value' : 'NO — client has edge on this price'}
+Bettor:             ${p1.sharpOrRec}
+Risk score:         ${p2.riskScore}/100 (${p2.riskLabel})
+Recommended offload: ${p2.recommendedOffload}%
+
+P&L IF CLIENT LOSES (we win): $${p2.netLose.toFixed(2)}
+P&L IF CLIENT WINS (we lose): We pay $${grossExp.toFixed(2)}, iBankroll pays $${ibPayout.toFixed(2)}
+EV: $${p2.ev.toFixed(2)}
+Break-even: we need client to lose >${(breakEven*100).toFixed(1)}% of the time
+
+Return ONLY this JSON:
+{
+  "verdict": "TAKE" | "LEAN_TAKE" | "LEAN_PASS" | "PASS",
+  "verdictReason": "max 20 words",
+  "aiAnalysis": "Market: fair odds and whether client has edge.\\n\\nOffload logic: why ${p2.recommendedOffload}% offload for this specific bet.\\n\\nVerdict: gross split if wins (we pay $${grossExp.toFixed(0)}, iBankroll $${ibPayout.toFixed(0)}), profit if loses, EV and recommendation.",
+  "scenarios": [
+    {"label": "Best case",  "pnl": ${p2.netLose.toFixed(2)}, "desc": "Client loses — we keep $${p2.netLose.toFixed(0)} profit${lossbackPct > 0 ? ' after lossback' : ''}. iBankroll keeps their $${p2.offloaded.toFixed(0)}."},
+    {"label": "Base case",  "pnl": ${p2.ev.toFixed(2)}, "desc": "EV-weighted outcome across fair probabilities."},
+    {"label": "Worst case", "pnl": ${(-grossExp).toFixed(2)}, "desc": "Client wins — we pay $${grossExp.toFixed(0)}, iBankroll pays $${ibPayout.toFixed(0)}."}
+  ]
+}`;
+  return callClaude(prompt, 700);
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -22,7 +150,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed.' });
 
   try {
-    const { matchup, selection, odds, wager, lossback } = req.body;
+    const { matchup, selection, odds, wager, lossback, phase, context } = req.body;
 
     if (!matchup || !selection || !odds || !wager) {
       return res.status(400).json({ success: false, error: 'Fixture, selection, odds and wager are required.' });
@@ -31,166 +159,36 @@ module.exports = async (req, res) => {
     const oddsNum     = parseFloat(odds);
     const wagerNum    = parseFloat(wager);
     const lossbackPct = Math.min(Math.max(parseFloat(lossback) || 0, 0), 15);
+    const lossbackAmt = wagerNum * (lossbackPct / 100);
 
     if (isNaN(oddsNum) || oddsNum < 1.01) return res.status(400).json({ success: false, error: 'Odds must be ≥ 1.01.' });
     if (isNaN(wagerNum) || wagerNum <= 0)  return res.status(400).json({ success: false, error: 'Wager must be > 0.' });
 
-    const impliedProb  = 1 / oddsNum;
-    const lossbackAmt  = wagerNum * (lossbackPct / 100);
+    const phaseNum = parseInt(phase) || 1;
+    const ctx      = context || {};
 
-    const lossbackLine = lossbackPct > 0
-      ? `Lossback %:         ${lossbackPct}% of stake = $${lossbackAmt.toLocaleString('en-US', {maximumFractionDigits:2})} (we refund this to client if they LOSE)`
-      : `Lossback:           None`;
-
-    const prompt = `You are a senior bookmaker and sports risk analyst. We are a growing sportsbook building our customer base. We use iBankroll as a bankroll management service — they allow us to take larger bets than our current float supports by absorbing a share of the liability.
-
-━━━ BET RECEIVED FROM CLIENT ━━━
-Fixture:            ${matchup}
-Selection:          ${selection}
-Client's odds:      ${oddsNum} (decimal)
-Client's stake:     $${wagerNum.toLocaleString('en-US')}
-Client's implied P: ${(impliedProb * 100).toFixed(2)}%
-Gross payout (if win): $${(oddsNum * wagerNum).toLocaleString('en-US', {maximumFractionDigits:2})}
-${lossbackLine}
-
-━━━ THE IBANKROLL MODEL ━━━
-We send a portion of the stake to iBankroll as a hedge at the SAME client odds.
-  → RETAINED = our share of the stake (our profit if client loses, our risk if they win)
-  → OFFLOADED = sent to iBankroll; they pay us back retained×odds if client wins
-
-THE CORE TRADEOFF:
-  More offload → LOWER profit if client loses, but LOWER risk if they win
-  Less offload → HIGHER profit if client loses, but HIGHER risk if they win
-
-We are offloading because we are early-stage and building float. This is temporary.
-The goal is to retain as much as we safely can given our current bankroll capacity.
-
-━━━ LOSSBACK EXPLAINED ━━━
-If lossback > 0%: when the client LOSES, we give them back ${lossbackPct}% of their stake ($${lossbackAmt.toLocaleString('en-US', {maximumFractionDigits:2})}).
-This is a direct cost that reduces our profit when the client loses.
-It does NOT affect what we owe if the client wins.
-
-━━━ YOUR TASKS ━━━
-
-1. IDENTIFY: sport, competition, market type.
-
-2. ASSESS the selection using expert knowledge:
-   - True fair probability and what major books price this at (Pinnacle, Bet365, DraftKings, FanDuel, PointsBet)
-   - Recent form, H2H, key matchup factors
-   - Sharp money or recreational? Is this a punter with an edge?
-
-3. RECOMMEND optimal OFFLOAD % to iBankroll using this scoring framework:
-
-   MATCH RISK factors (push offload UP):
-   - Coin-flip fixture (implied prob 45-55%) → high variance, +15-25% offload
-   - Short odds / heavy favourite (implied prob >70%) → lower variance, −10% offload
-   - High-profile / marquee event → sharp money likely, +10% offload
-   - Late line movement toward selection → possible sharp edge, +15% offload
-   - Injury news, weather uncertainty, playoff context → +10-20% offload
-
-   STAKE SIZE factors:
-   - $0–$5K stake: retain more (50-70%), this is normal action
-   - $5K–$15K stake: balanced split (60-75% offload), meaningful exposure
-   - $15K–$30K stake: offload heavily (70-85%), beyond typical book capacity
-   - $30K+ stake: near-maximum offload (85-95%), protect the book
-
-   BETTOR PROFILE factors:
-   - Unknown/new bettor: +10% offload (no history)
-   - Known recreational: −10% offload (soft money, keep the edge)
-   - Known sharp or professional: +20% offload (respect the edge)
-
-   Combine these factors for a single integer offload %. Explain your reasoning with the specific factors that drove your recommendation.
-
-4. CALCULATE (use exact arithmetic, set recommendedMargin to 0):
-   retained   = ${wagerNum} × (1 − offload/100)
-   offloaded  = ${wagerNum} × (offload/100)
-   lossback   = $${lossbackAmt.toLocaleString('en-US', {maximumFractionDigits:2})} (given above — fixed regardless of offload %)
-   ibOdds     = ${oddsNum}   (same client odds)
-
-   netLose    = retained − lossback            ← our actual PROFIT when client LOSES
-   netWin     = −(retained × (${oddsNum}−1))   ← our NET LOSS when client WINS
-   ev         = (1−fairWinProb)×netLose + fairWinProb×netWin
-   breakEven  = (retained − lossback) / (retained×${oddsNum} − lossback)
-
-   KEY: if true win prob < breakEven → EV positive → TAKE
-        if true win prob > breakEven → EV negative → PASS
-
-5. VERDICT:
-   TAKE      → clear edge, EV positive, stake manageable even with lossback
-   LEAN_TAKE → slight edge, acceptable risk, offload adequately protects us
-   LEAN_PASS → thin edge or lossback erodes profit, consider higher offload %
-   PASS      → no edge or stake too large even at max offload
-
-6. WRITE aiAnalysis: exactly 3 short paragraphs (separated by \\n\\n):
-   § 1 — MARKET: fair odds vs client price, sharp or recreational, line movement, injuries/news.
-   § 2 — OFFLOAD LOGIC: why this specific offload % — stake size, match risk, bettor profile.
-   § 3 — VERDICT: gross payout split (we pay $X / iBankroll $Y if wins), profit if loses, EV.
-
-Respond ONLY with valid JSON. No markdown, no text outside the JSON.
-
-{
-  "detectedSport": "string",
-  "detectedMarket": "string",
-  "recommendedOffload": integer,
-  "ibOdds": number,
-  "retained": number,
-  "offloaded": number,
-  "netWin": number,
-  "netLose": number,
-  "ev": number,
-  "verdict": "TAKE" | "LEAN_TAKE" | "LEAN_PASS" | "PASS",
-  "verdictReason": "string max 20 words",
-  "riskScore": integer 1-100,
-  "riskLabel": "Low" | "Moderate" | "High" | "Very High",
-  "fairOdds": number,
-  "impliedProb": number,
-  "marketOdds": [
-    {"book": "Pinnacle",   "price": number},
-    {"book": "Bet365",     "price": number},
-    {"book": "DraftKings", "price": number},
-    {"book": "FanDuel",    "price": number},
-    {"book": "PointsBet",  "price": number}
-  ],
-  "suggestedMaxWager": number,
-  "edgeVsMarket": number,
-  "aiAnalysis": "paragraph 1\\n\\nparagraph 2\\n\\nparagraph 3",
-  "scenarios": [
-    {"label": "Best case",  "pnl": number, "desc": "client LOSES — we keep $X profit"},
-    {"label": "Base case",  "pnl": number, "desc": "EV-weighted outcome"},
-    {"label": "Worst case", "pnl": number, "desc": "client WINS — we pay $X, iBankroll pays $Y"}
-  ]
-}`;
-
-    console.log(`[analyse] ${matchup} / ${selection} @ ${oddsNum}`);
-
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1400,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const rawText = extractText(response.content);
-    console.log(`[analyse] Done. stop_reason=${response.stop_reason}`);
+    console.log(`[analyse] Phase ${phaseNum} — ${matchup} / ${selection} @ ${oddsNum}`);
 
     let data;
-    try {
-      data = parseJSON(rawText);
-    } catch (e) {
-      console.error('[analyse] JSON parse error:', e.message);
-      console.error('[analyse] Raw:', rawText.slice(0, 500));
-      return res.status(500).json({ success: false, error: 'Model returned invalid JSON. Please try again.' });
+    if (phaseNum === 1) {
+      data = await phase1(matchup, selection, oddsNum);
+    } else if (phaseNum === 2) {
+      data = await phase2(matchup, selection, oddsNum, wagerNum, lossbackPct, lossbackAmt, ctx.p1);
+    } else {
+      data = await phase3(matchup, selection, oddsNum, wagerNum, lossbackPct, ctx.p1, ctx.p2);
     }
 
     data.inputOdds     = oddsNum;
     data.inputWager    = wagerNum;
     data.inputLossback = lossbackPct;
 
-    return res.json({ success: true, data });
+    console.log(`[analyse] Phase ${phaseNum} done.`);
+    return res.json({ success: true, phase: phaseNum, data });
 
   } catch (err) {
     console.error('[analyse] Error:', err);
-    if (err.status === 401) return res.status(500).json({ success: false, error: 'Invalid Anthropic API key. Add ANTHROPIC_API_KEY in Vercel environment variables.' });
-    if (err.status === 429) return res.status(429).json({ success: false, error: 'Rate limit reached. Please wait a moment and try again.' });
+    if (err.status === 401) return res.status(500).json({ success: false, error: 'Invalid Anthropic API key.' });
+    if (err.status === 429) return res.status(429).json({ success: false, error: 'Rate limit reached. Please wait a moment.' });
     return res.status(500).json({ success: false, error: err.message || 'Internal server error.' });
   }
 };

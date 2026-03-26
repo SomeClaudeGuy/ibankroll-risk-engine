@@ -365,11 +365,11 @@ main { padding: 32px 0 80px; }
   <!-- Thinking -->
   <div class="thinking-panel" id="thinkingPanel">
     <div class="thinking-header"><div class="spinner"></div>AI is analysing — please wait</div>
-    <div class="t-step" id="ts0"><span class="t-icon">○</span>Searching live odds across Pinnacle, Bet365, DraftKings, FanDuel...</div>
-    <div class="t-step" id="ts1"><span class="t-icon">○</span>Pulling injury reports and team news...</div>
-    <div class="t-step" id="ts2"><span class="t-icon">○</span>Analysing line movement and sharp money flow...</div>
-    <div class="t-step" id="ts3"><span class="t-icon">○</span>Calculating EV, Kelly criterion and optimal offload strategy...</div>
-    <div class="t-step" id="ts4"><span class="t-icon">○</span>Generating commercial verdict...</div>
+    <div class="t-step" id="ts0"><span class="t-icon">○</span>Phase 1 — Assessing market odds, fair value & sharp/rec profile...</div>
+    <div class="t-step" id="ts1"><span class="t-icon">○</span>Phase 1 — Pulling form, H2H, injuries & line movement...</div>
+    <div class="t-step" id="ts2"><span class="t-icon">○</span>Phase 2 — Calculating offload %, risk score & P&L scenarios...</div>
+    <div class="t-step" id="ts3"><span class="t-icon">○</span>Phase 2 — Kelly fraction, suggested max wager & key risks...</div>
+    <div class="t-step" id="ts4"><span class="t-icon">○</span>Phase 3 — Generating commercial verdict & recommendation...</div>
   </div>
 
   <!-- Error -->
@@ -493,31 +493,31 @@ function esc(s) {
 }
 
 // ── Thinking steps ────────────────────────────────────────────────────────────
-const STEP_MS = [7000, 9000, 7000, 6000, 5000];
-let thinkTimer;
-
-function startThinking() {
+function resetSteps() {
   $('thinkingPanel').classList.add('active');
   for (let i = 0; i < 5; i++) {
     $(`ts${i}`).className = 't-step';
     $(`ts${i}`).querySelector('.t-icon').textContent = '○';
   }
-  let acc = 0;
-  STEP_MS.forEach((ms, i) => {
-    setTimeout(() => {
-      if (i > 0) {
-        $(`ts${i-1}`).classList.replace('active','done') || $(`ts${i-1}`).classList.add('done');
-        $(`ts${i-1}`).querySelector('.t-icon').textContent = '✓';
-      }
-      $(`ts${i}`).classList.add('active');
-      $(`ts${i}`).querySelector('.t-icon').textContent = '›';
-    }, acc);
-    acc += ms;
-  });
+}
+
+function activateStep(i) {
+  if (i > 0) {
+    $(`ts${i-1}`).className = 't-step done';
+    $(`ts${i-1}`).querySelector('.t-icon').textContent = '✓';
+  }
+  $(`ts${i}`).classList.add('active');
+  $(`ts${i}`).querySelector('.t-icon').textContent = '›';
+}
+
+function completeSteps(upTo) {
+  for (let i = 0; i <= upTo; i++) {
+    $(`ts${i}`).className = 't-step done';
+    $(`ts${i}`).querySelector('.t-icon').textContent = '✓';
+  }
 }
 
 function stopThinking() {
-  clearTimeout(thinkTimer);
   $('thinkingPanel').classList.remove('active');
 }
 
@@ -678,39 +678,52 @@ async function runAnalysis() {
   hideError();
   $('output').classList.remove('active');
   $('runBtn').disabled = true;
-  startThinking();
+  resetSteps();
 
-  try {
+  const base = { matchup, selection, odds, wager, lossback: lossbackPct };
+
+  async function callPhase(phase, context) {
     const resp = await fetch('/api/analyse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchup, selection, odds, wager, lossback: lossbackPct }),
+      body: JSON.stringify({ ...base, phase, context }),
     });
+    if (resp.status === 504 || resp.status === 502) throw new Error('Analysis timed out — please try again.');
+    if (!resp.ok) throw new Error(`Server error (${resp.status}). Check ANTHROPIC_API_KEY is set in Vercel.`);
+    const json = await resp.json();
+    if (!json.success) throw new Error(json.error || 'Unknown server error.');
+    return json.data;
+  }
 
-    let json;
-    try {
-      json = await resp.json();
-    } catch (e) {
-      if (resp.status === 504 || resp.status === 502) {
-        throw new Error('Analysis timed out — the AI took too long. Please try again.');
-      }
-      if (resp.status === 500) {
-        throw new Error('Server error (500). Check that ANTHROPIC_API_KEY is set in Vercel environment variables.');
-      }
-      throw new Error(`Unexpected server response (HTTP ${resp.status}). Please try again.`);
-    }
+  try {
+    // ── Phase 1: Market Intelligence ──────────────────────────────
+    activateStep(0);
+    const p1 = await callPhase(1, {});
+    activateStep(1);
+    completeSteps(1);
 
-    stopThinking();
-
-    if (!json.success) {
-      showError(json.error || 'Unknown error from server.');
-      $('runBtn').disabled = false;
-      return;
-    }
-
-    renderOutput(json.data);
+    // Render market data immediately
+    renderPhase1(p1, odds, wager, lossbackPct);
     $('output').classList.add('active');
     setTimeout(() => $('output').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+    // ── Phase 2: Risk & Offload ────────────────────────────────────
+    activateStep(2);
+    const p2 = await callPhase(2, { p1 });
+    activateStep(3);
+    completeSteps(3);
+
+    // Render risk data
+    renderPhase2(p2, p1, odds, wager, lossbackPct);
+
+    // ── Phase 3: Verdict ───────────────────────────────────────────
+    activateStep(4);
+    const p3 = await callPhase(3, { p1, p2 });
+    completeSteps(4);
+    stopThinking();
+
+    // Render verdict
+    renderPhase3(p3, p2, odds, wager, lossbackPct);
 
   } catch (err) {
     stopThinking();
@@ -720,66 +733,21 @@ async function runAnalysis() {
   $('runBtn').disabled = false;
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-function renderOutput(d) {
-  const odds        = d.inputOdds;
-  const wager       = d.inputWager;
-  const lossbackPct = d.inputLossback || 0;
-  const offPct      = d.recommendedOffload || 50;
+// ── Shared P&L calc ───────────────────────────────────────────────────────────
+function calcPnl(odds, wager, lossbackPct, offPct, p2 = {}) {
+  const retained  = p2.retained  ?? wager * (1 - offPct / 100);
+  const offloaded = p2.offloaded ?? wager * (offPct / 100);
+  const lossback  = wager * (lossbackPct / 100);
+  const grossExp  = retained * odds;
+  const netLose   = p2.netLose   ?? (retained - lossback);
+  const ev        = p2.ev        ?? 0;
+  return { retained, offloaded, lossback, grossExp, netLose, ev };
+}
 
-  // ── Business model: hedge with iBankroll ─────────────────────────────────
-  // We send `offloaded` to iBankroll as a hedge at client odds.
-  // We keep `retained` on our book. No commission — pure proportional split.
-  // Lossback = % of full wager we refund to client if they lose (our direct cost).
-  const retained  = d.retained  ?? wager * (1 - offPct / 100);
-  const offloaded = d.offloaded ?? wager * (offPct / 100);
-  const lossback  = wager * (lossbackPct / 100);               // cost we pay if client LOSES
-  const grossExp  = retained * odds;                            // gross payout if client WINS
-  // Net P&L scenarios:
-  const netLose   = d.netLose   ?? (retained - lossback);      // profit when client LOSES (after lossback)
-  const netWin    = d.netWin    ?? -(retained * (odds - 1));    // net loss when client WINS
-  // EV uses AI's estimated true win probability
-  const aiWinProb = d.impliedProb || (1 / odds);
-  const ev        = d.ev ?? ((1 - aiWinProb) * netLose + aiWinProb * netWin);
-  // Break-even win% accounting for lossback cost
-  // Solve: (1-p)(retained - lossback) + p×netWin = 0
-  const ibBreakEven = (retained - lossback) / (retained * odds - lossback);
-
-  // ── Verdict ──
-  const cls = { TAKE:'take', LEAN_TAKE:'lean-take', LEAN_PASS:'lean-pass', PASS:'pass' }[d.verdict] || 'lean-pass';
-  const label = { TAKE:'Take It', LEAN_TAKE:'Lean Take', LEAN_PASS:'Lean Pass', PASS:'Pass' }[d.verdict] || d.verdict;
-  const riskColor = d.riskScore < 35 ? 'var(--green)' : d.riskScore < 65 ? 'var(--warn)' : 'var(--danger)';
-
-  $('verdictBanner').className = `verdict-banner ${cls}`;
-  $('verdictTag').textContent  = label;
-  $('verdictReason').textContent = d.verdictReason || '';
-  $('verdictMeta').innerHTML = [
-    d.detectedSport  ? `Sport: <span>${esc(d.detectedSport)}</span>`  : '',
-    d.detectedMarket ? `Market: <span>${esc(d.detectedMarket)}</span>` : '',
-    `Offload to iBankroll: <span>${offPct}%</span>`,
-    `We retain: <span>${(100 - offPct)}%</span>`,
-  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
-  $('riskScore').textContent = d.riskScore || '—';
-  $('riskScore').style.color = riskColor;
-  $('riskLabel').textContent = (d.riskLabel || '').toUpperCase() + ' RISK';
-
-  // ── Key Numbers ──
-  $('knRetained').textContent    = money(retained);
-  $('knRetainedSub').textContent = `${(100-offPct).toFixed(0)}% on our book — profit if client loses`;
-  $('knOffloaded').textContent   = money(offloaded);
-  $('knOffloadedSub').textContent= `${offPct}% hedged — iBankroll pays ${dp(odds)}× back if wins`;
-  // Card 3: net profit when client LOSES (after lossback deducted)
-  $('knWin').textContent         = money(netLose, true);
-  $('knWin').className           = 'kn-value pos';
-  const lbNote = lossbackPct > 0 ? ` after $${Math.round(lossback).toLocaleString()} lossback` : '';
-  $('knWinSub').textContent      = `Keep $${Math.round(retained).toLocaleString()}${lbNote} — iBankroll keeps $${Math.round(offloaded).toLocaleString()}`;
-  // Card 4: gross payout exposure (retained × odds) — the "risk" figure
-  $('knLose').textContent        = money(grossExp, true);
-  $('knLose').className          = 'kn-value neg';
-  $('knLoseSub').textContent     = `Net P&L: ${money(netWin,true)} — iBankroll covers $${Math.round(offloaded*(odds-1)).toLocaleString()}`;
-
-  // ── Odds Table ──
-  const mktOdds = d.marketOdds || [];
+// ── Phase 1 render: market intelligence ──────────────────────────────────────
+function renderPhase1(p1, odds, wager, lossbackPct) {
+  // Odds table
+  const mktOdds = p1.marketOdds || [];
   const bestMkt = mktOdds.reduce((m, o) => Math.max(m, o.price), 0);
   let rows = `<tr class="player-row">
     <td><span class="book-name">Your Price</span></td>
@@ -793,60 +761,130 @@ function renderOutput(d) {
   });
   $('oddsTbody').innerHTML = rows;
 
-  // ── P&L ──
-  const edgeVsM  = d.edgeVsMarket || 0;
-  const bepColor = aiWinProb <= ibBreakEven ? 'var(--green)' : 'var(--danger)';
-  const pnlRows = [
-    ['Retained on book',              `<span class="pnl-val">${money(retained)}</span>`],
-    ['Hedged to iBankroll',           `<span class="pnl-val acc">${money(offloaded)}</span>`],
+  // Context rows
+  const ctx = [
+    ['Recent Form',    p1.recentForm],
+    ['Line Movement',  p1.lineMovement],
+    ['Sharp Action',   p1.sharpAction],
+    ['Injuries/News',  p1.weatherInjuries],
   ];
-  if (lossbackPct > 0) {
-    pnlRows.push(['Lossback cost (if client loses)', `<span class="pnl-val red">−${money(lossback)}</span>`]);
-  }
-  pnlRows.push(
-    ['Profit if client LOSES',        `<span class="pnl-val grn">${money(netLose,true)}</span>`],
-    ['We pay if client WINS',         `<span class="pnl-val red">−${money(grossExp)}</span>`],
-    ['iBankroll pays if client WINS', `<span class="pnl-val red">−${money(offloaded*odds)}</span>`],
-    ['Expected value (EV)',            `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
-    ['AI: chance client LOSES (we win)',`<span class="pnl-val acc">${pct(1 - aiWinProb,1)}</span>`],
-  );
-  $('pnlRows').innerHTML = pnlRows.map(([l,v]) => `<div class="pnl-row"><span class="pnl-label">${l}</span>${v}</div>`).join('');
+  if ($('ctxSection')) $('ctxSection').style.display = '';
+  $('ctxRows').innerHTML = ctx.filter(([,v]) => v && v !== 'N/A').map(([l,v]) =>
+    `<div class="ctx-item"><div class="ctx-label">${l}</div><div class="ctx-val">${esc(v)}</div></div>`
+  ).join('');
 
-  // ── Risk Meter ──
-  const rs = d.riskScore || 50;
+  // Placeholder verdict while phases 2+3 load
+  $('verdictBanner').className = 'verdict-banner lean-pass';
+  $('verdictTag').textContent  = 'Analysing…';
+  $('verdictReason').textContent = 'Calculating risk & offload recommendation…';
+  $('verdictMeta').innerHTML = [
+    p1.detectedSport  ? `Sport: <span>${esc(p1.detectedSport)}</span>`  : '',
+    p1.detectedMarket ? `Market: <span>${esc(p1.detectedMarket)}</span>` : '',
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+}
+
+// ── Phase 2 render: risk & offload ────────────────────────────────────────────
+function renderPhase2(p2, p1, odds, wager, lossbackPct) {
+  const offPct    = p2.recommendedOffload || 50;
+  const { retained, offloaded, lossback, grossExp, netLose } = calcPnl(odds, wager, lossbackPct, offPct, p2);
+  const riskColor = p2.riskScore < 35 ? 'var(--green)' : p2.riskScore < 65 ? 'var(--warn)' : 'var(--danger)';
+  const aiWinProb = p1.fairWinProb || (1 / odds);
+
+  // Update verdict meta with offload info
+  $('verdictMeta').innerHTML = [
+    p1.detectedSport  ? `Sport: <span>${esc(p1.detectedSport)}</span>`  : '',
+    p1.detectedMarket ? `Market: <span>${esc(p1.detectedMarket)}</span>` : '',
+    `Offload to iBankroll: <span>${offPct}%</span>`,
+    `We retain: <span>${100 - offPct}%</span>`,
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+  // Risk score
+  $('riskScore').textContent = p2.riskScore || '—';
+  $('riskScore').style.color = riskColor;
+  $('riskLabel').textContent = (p2.riskLabel || '').toUpperCase() + ' RISK';
+  const rs = p2.riskScore || 50;
   $('riskFill').style.width = '0%';
   setTimeout(() => { $('riskFill').style.width = rs + '%'; }, 80);
   $('riskFillLabel').textContent = `${rs}/100`;
   $('riskFillLabel').style.color = riskColor;
 
-  // ── Scenarios ──
-  const sc = d.scenarios || [];
+  // Key Numbers
+  $('knRetained').textContent     = money(retained);
+  $('knRetainedSub').textContent  = `${(100-offPct).toFixed(0)}% on our book — profit if client loses`;
+  $('knOffloaded').textContent    = money(offloaded);
+  $('knOffloadedSub').textContent = `${offPct}% hedged — iBankroll pays ${dp(odds)}× back if wins`;
+  $('knWin').textContent          = money(netLose, true);
+  $('knWin').className            = 'kn-value pos';
+  const lbNote = lossbackPct > 0 ? ` after $${Math.round(lossback).toLocaleString()} lossback` : '';
+  $('knWinSub').textContent       = `Keep $${Math.round(retained).toLocaleString()}${lbNote} — iBankroll keeps $${Math.round(offloaded).toLocaleString()}`;
+  $('knLose').textContent         = money(grossExp, true);
+  $('knLose').className           = 'kn-value neg';
+  $('knLoseSub').textContent      = `iBankroll also pays $${Math.round(offloaded * odds).toLocaleString()} separately`;
+
+  // P&L rows
+  const pnlRows = [
+    ['Retained on book',               `<span class="pnl-val">${money(retained)}</span>`],
+    ['Hedged to iBankroll',            `<span class="pnl-val acc">${money(offloaded)}</span>`],
+  ];
+  if (lossbackPct > 0) {
+    pnlRows.push(['Lossback cost (if client loses)', `<span class="pnl-val red">−${money(lossback)}</span>`]);
+  }
+  pnlRows.push(
+    ['Profit if client LOSES',         `<span class="pnl-val grn">${money(netLose, true)}</span>`],
+    ['We pay if client WINS',          `<span class="pnl-val red">−${money(grossExp)}</span>`],
+    ['iBankroll pays if client WINS',  `<span class="pnl-val red">−${money(offloaded * odds)}</span>`],
+    ['Expected value (EV)',            `<span class="pnl-val ${p2.ev >= 0 ? 'grn' : 'red'}">${money(p2.ev, true)}</span>`],
+    ['AI: chance client LOSES (we win)', `<span class="pnl-val acc">${pct(1 - aiWinProb, 1)}</span>`],
+  );
+  $('pnlRows').innerHTML = pnlRows.map(([l,v]) => `<div class="pnl-row"><span class="pnl-label">${l}</span>${v}</div>`).join('');
+
+  // Recommendation panel
+  $('recRows').innerHTML = [
+    ['AI Offload %',        `<span class="rec-val" style="color:var(--accent)">${offPct}%</span>`],
+    ['We Retain',           `<span class="rec-val" style="color:var(--accent)">${100-offPct}%</span>`],
+    ['Suggested Max Wager', `<span class="rec-val">${money(p2.suggestedMaxWager || wager)}</span>`],
+    ['Kelly Fraction',      `<span class="rec-val">${((p2.kellyFraction||0)*100).toFixed(2)}%</span>`],
+    ['Risk Score',          `<span class="rec-val" style="color:${riskColor}">${p2.riskScore}/100 — ${esc(p2.riskLabel)}</span>`],
+  ].map(([l,v]) => `<div class="rec-row"><span class="rec-label">${l}</span>${v}</div>`).join('');
+
+  // Key risks in context
+  if (p2.keyRisks) {
+    const existing = $('ctxRows').innerHTML;
+    $('ctxRows').innerHTML = existing + `<div class="ctx-item"><div class="ctx-label">Key Risks</div><div class="ctx-val">${esc(p2.keyRisks)}</div></div>`;
+  }
+  if (p2.offloadReasoning) {
+    const existing = $('ctxRows').innerHTML;
+    $('ctxRows').innerHTML = existing + `<div class="ctx-item"><div class="ctx-label">Offload Reasoning</div><div class="ctx-val">${esc(p2.offloadReasoning)}</div></div>`;
+  }
+}
+
+// ── Phase 3 render: verdict ────────────────────────────────────────────────────
+function renderPhase3(p3, p2, odds, wager, lossbackPct) {
+  const offPct   = p2.recommendedOffload || 50;
+  const { retained, offloaded, grossExp, netLose } = calcPnl(odds, wager, lossbackPct, offPct, p2);
+  const riskColor = p2.riskScore < 35 ? 'var(--green)' : p2.riskScore < 65 ? 'var(--warn)' : 'var(--danger)';
+
+  // Verdict banner
+  const cls   = { TAKE:'take', LEAN_TAKE:'lean-take', LEAN_PASS:'lean-pass', PASS:'pass' }[p3.verdict] || 'lean-pass';
+  const label = { TAKE:'Take It', LEAN_TAKE:'Lean Take', LEAN_PASS:'Lean Pass', PASS:'Pass' }[p3.verdict] || p3.verdict;
+  $('verdictBanner').className    = `verdict-banner ${cls}`;
+  $('verdictTag').textContent     = label;
+  $('verdictReason').textContent  = p3.verdictReason || '';
+
+  // Scenarios (worst-case always uses grossExp)
+  const sc    = p3.scenarios || [];
   const scCls = ['best','base','worst'];
-  // Override worst-case pnl to always show gross payout (what we write a cheque for)
-  const scPnl = (s, i) => i === 2 ? -grossExp : s.pnl;
-  $('scenariosGrid').innerHTML = sc.map((s,i) =>
+  $('scenariosGrid').innerHTML = sc.map((s, i) =>
     `<div class="sc-card ${scCls[i]||''}">
       <div class="sc-label">${esc(s.label)}</div>
-      <div class="sc-pnl">${money(scPnl(s,i),true)}</div>
+      <div class="sc-pnl">${money(i === 2 ? -grossExp : s.pnl, true)}</div>
       <div class="sc-desc">${esc(s.desc)}</div>
     </div>`
   ).join('');
 
-  // ── AI Analysis ──
-  $('aiBody').innerHTML = (d.aiAnalysis||'').split('\n\n').filter(Boolean)
+  // AI Analysis
+  $('aiBody').innerHTML = (p3.aiAnalysis||'').split('\n\n').filter(Boolean)
     .map(p => `<p>${esc(p)}</p>`).join('');
-
-  // ── Recommendation ──
-  $('recRows').innerHTML = [
-    ['AI Offload %',       `<span class="rec-val" style="color:var(--accent)">${offPct}%</span>`],
-    ['We Retain',          `<span class="rec-val" style="color:var(--accent)">${100-offPct}%</span>`],
-    ['Suggested Max Wager',`<span class="rec-val">${money(d.suggestedMaxWager||wager)}</span>`],
-    ['Risk Score',         `<span class="rec-val" style="color:${riskColor}">${d.riskScore}/100 — ${esc(d.riskLabel)}</span>`],
-  ].map(([l,v]) => `<div class="rec-row"><span class="rec-label">${l}</span>${v}</div>`).join('');
-
-  // ── Context (hide section if no data) ──
-  $('ctxRows').innerHTML = '';
-  if ($('ctxSection')) $('ctxSection').style.display = 'none';
 }
 
 function diffBadge(price, ref) {
