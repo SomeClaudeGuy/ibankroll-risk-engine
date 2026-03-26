@@ -33,38 +33,30 @@ async function withRetry(fn, retries = 2, delayMs = 3000) {
   }
 }
 
-async function callClaude(prompt, maxTokens, useSearch = false) {
+async function callClaude(prompt, maxTokens, model = 'fast') {
+  const modelId = model === 'fast' ? 'claude-haiku-4-5' : 'claude-sonnet-4-6';
   const params = {
-    model: 'claude-sonnet-4-6',
+    model: modelId,
     max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   };
-  if (useSearch) {
-    params.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
-  }
   const response = await withRetry(() => client.messages.create(params));
   const raw = extractText(response.content);
   try {
     return parseJSON(raw);
   } catch (e) {
-    console.error('[analyse] JSON parse failed. Raw output:', raw.slice(0, 300));
+    console.error('[analyse] JSON parse failed on', modelId, '- Raw:', raw.slice(0, 300));
     throw new Error('Model returned invalid JSON. Please try again.');
   }
 }
 
-// ── Phase 1: Market Intelligence (with live web search) ──────────────────────
+// ── Phase 1: Market Intelligence (model knowledge - no web search for speed) ──
 async function phase1(matchup, selection, oddsNum) {
-  const prompt = `You are a senior sports odds analyst. Use web search to find CURRENT live odds for this fixture from major bookmakers, then assess the bet.
+  const prompt = `Sports odds analyst. Assess this bet using your knowledge. Be concise and fast.
 
-Fixture:   ${matchup}
-Selection: ${selection}
-Our price: ${oddsNum} (decimal)
+Fixture: ${matchup} | Selection: ${selection} | Our price: ${oddsNum}
 
-Search for TWO things:
-1. "${matchup} ${selection} odds" - find current prices on Pinnacle, Bet365, DraftKings, FanDuel, PointsBet. Also find the opening line.
-2. "${matchup} injuries news form" - recent team form, H2H, injuries, lineup news.
-
-Return ONLY this JSON (no markdown, no text outside JSON):
+Return ONLY this JSON:
 {
   "detectedSport": "string",
   "detectedMarket": "string",
@@ -73,21 +65,21 @@ Return ONLY this JSON (no markdown, no text outside JSON):
   "edgeVsMarket": number,
   "openingLine": number,
   "marketOdds": [
-    {"book": "Pinnacle",   "price": number},
-    {"book": "Bet365",     "price": number},
+    {"book": "Pinnacle", "price": number},
+    {"book": "Bet365", "price": number},
     {"book": "DraftKings", "price": number},
-    {"book": "FanDuel",    "price": number},
-    {"book": "PointsBet",  "price": number}
+    {"book": "FanDuel", "price": number},
+    {"book": "PointsBet", "price": number}
   ],
   "sharpOrRec": "sharp" | "recreational" | "unknown",
-  "publicVsSharp": "e.g. 68% public on selection but line moved against - reverse line movement signal",
-  "recentForm": "2 sentences on recent form and H2H",
-  "lineMovement": "1 sentence on line movement since open (opened X now Y)",
+  "publicVsSharp": "one sentence on public vs sharp split",
+  "recentForm": "one sentence on recent form and H2H",
+  "lineMovement": "one sentence on line movement",
   "reverseLineMovement": true | false,
-  "sharpAction": "1 sentence on where sharp/syndicate money is pointing",
-  "weatherInjuries": "1 sentence on injuries, lineup news or conditions (none if N/A)"
+  "sharpAction": "one sentence on sharp money",
+  "weatherInjuries": "one sentence on injuries or conditions, none if N/A"
 }`;
-  return callClaude(prompt, 800, true);
+  return callClaude(prompt, 600, false);
 }
 
 // ── Phase 2: Risk & Offload ──────────────────────────────────────────────────
@@ -138,7 +130,7 @@ Return ONLY this JSON:
   "keyRisks": "2-3 specific risks to our book on this bet",
   "offloadReasoning": "2 sentences explaining exactly why this offload % was chosen"
 }`;
-  return callClaude(prompt, 500);
+  return callClaude(prompt, 500, 'fast');
 }
 
 // ── Phase 3: Verdict ──────────────────────────────────────────────────────────
@@ -176,7 +168,7 @@ Return ONLY this JSON:
     {"label": "Worst case", "pnl": ${(-grossExp).toFixed(2)}, "desc": "Client wins - we pay $${grossExp.toFixed(0)}, iBankroll pays $${ibPayout.toFixed(0)}."}
   ]
 }`;
-  return callClaude(prompt, 700);
+  return callClaude(prompt, 700, 'smart');
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
