@@ -22,21 +22,27 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed.' });
 
   try {
-    const { matchup, selection, odds, wager } = req.body;
+    const { matchup, selection, odds, wager, lossback } = req.body;
 
     if (!matchup || !selection || !odds || !wager) {
       return res.status(400).json({ success: false, error: 'Fixture, selection, odds and wager are required.' });
     }
 
-    const oddsNum  = parseFloat(odds);
-    const wagerNum = parseFloat(wager);
+    const oddsNum     = parseFloat(odds);
+    const wagerNum    = parseFloat(wager);
+    const lossbackPct = Math.min(Math.max(parseFloat(lossback) || 0, 0), 15);
 
     if (isNaN(oddsNum) || oddsNum < 1.01) return res.status(400).json({ success: false, error: 'Odds must be ≥ 1.01.' });
     if (isNaN(wagerNum) || wagerNum <= 0)  return res.status(400).json({ success: false, error: 'Wager must be > 0.' });
 
-    const impliedProb = 1 / oddsNum;
+    const impliedProb  = 1 / oddsNum;
+    const lossbackAmt  = wagerNum * (lossbackPct / 100);
 
-    const prompt = `You are a senior bookmaker and sports trader with 15 years of wholesale OTC experience. We are a sportsbook that has received a large client bet. We use iBankroll as a bankroll management partner — they absorb a portion of the liability we cannot fully cover ourselves.
+    const lossbackLine = lossbackPct > 0
+      ? `Lossback %:         ${lossbackPct}% of stake = $${lossbackAmt.toLocaleString('en-US', {maximumFractionDigits:2})} (we refund this to client if they LOSE)`
+      : `Lossback:           None`;
+
+    const prompt = `You are a senior bookmaker and sports risk analyst. We are a growing sportsbook building our customer base. We use iBankroll as a bankroll management service — they allow us to take larger bets than our current float supports by absorbing a share of the liability.
 
 ━━━ BET RECEIVED FROM CLIENT ━━━
 Fixture:            ${matchup}
@@ -44,54 +50,66 @@ Selection:          ${selection}
 Client's odds:      ${oddsNum} (decimal)
 Client's stake:     $${wagerNum.toLocaleString('en-US')}
 Client's implied P: ${(impliedProb * 100).toFixed(2)}%
-Max payout:         $${(oddsNum * wagerNum).toLocaleString('en-US', {maximumFractionDigits:2})}
+Gross payout (if win): $${(oddsNum * wagerNum).toLocaleString('en-US', {maximumFractionDigits:2})}
+${lossbackLine}
 
-━━━ HOW THE LIABILITY SPLIT WORKS ━━━
-We split the liability with iBankroll. Both parties accept the same client odds.
-  → We RETAIN a portion on our own book.
-  → We PASS the rest to iBankroll — their liability, their share of the profit or loss.
-  → There is NO commission or margin. The profit comes purely from the customer LOSING.
+━━━ THE IBANKROLL MODEL ━━━
+We send a portion of the stake to iBankroll as a hedge at the SAME client odds.
+  → RETAINED = our share of the stake (our profit if client loses, our risk if they win)
+  → OFFLOADED = sent to iBankroll; they pay us back retained×odds if client wins
 
-If customer LOSES: we keep our retained stake. iBankroll keeps theirs. We both profit.
-If customer WINS:  we pay out profit on our retained share. iBankroll pays out theirs.
+THE CORE TRADEOFF:
+  More offload → LOWER profit if client loses, but LOWER risk if they win
+  Less offload → HIGHER profit if client loses, but HIGHER risk if they win
+
+We are offloading because we are early-stage and building float. This is temporary.
+The goal is to retain as much as we safely can given our current bankroll capacity.
+
+━━━ LOSSBACK EXPLAINED ━━━
+If lossback > 0%: when the client LOSES, we give them back ${lossbackPct}% of their stake ($${lossbackAmt.toLocaleString('en-US', {maximumFractionDigits:2})}).
+This is a direct cost that reduces our profit when the client loses.
+It does NOT affect what we owe if the client wins.
 
 ━━━ YOUR TASKS ━━━
 
 1. IDENTIFY: sport, competition, market type.
 
-2. ASSESS THE SELECTION using your expert knowledge:
-   - What is the true fair probability of this selection winning?
-   - What do major books price this at? (Pinnacle, Bet365, DraftKings, FanDuel, PointsBet)
-   - Recent form, H2H record, key matchup factors
-   - Is this sharp money or recreational? Would a sharp bettor back this?
+2. ASSESS the selection using expert knowledge:
+   - True fair probability and what major books price this at (Pinnacle, Bet365, DraftKings, FanDuel, PointsBet)
+   - Recent form, H2H, key matchup factors
+   - Sharp money or recreational? Is this a punter with an edge?
 
-3. RECOMMEND an OFFLOAD % to iBankroll:
-   High offload (60–85%): sharp bet, large stake vs our capacity, high-variance event
-   Low offload (20–50%): soft/recreational bet, low variance, we have confidence in the price
+3. RECOMMEND optimal OFFLOAD % to iBankroll, reasoning from:
+   - Stake size relative to typical book capacity (large stake = offload more)
+   - Bet sharpness: sharp/unknown bettor = offload more to protect book
+   - Bet quality: clear recreational money = comfortable retaining more
+   - Our early-stage position: err toward more offload to protect float
 
 4. CALCULATE (use exact arithmetic, set recommendedMargin to 0):
-   retained  = ${wagerNum} × (1 − offload/100)      ← our share of the stake
-   offloaded = ${wagerNum} × (offload/100)           ← iBankroll's share
-   ibOdds    = ${oddsNum}                            ← same odds for both parties
-   netLose   = retained                              ← our PROFIT when customer LOSES
-   netWin    = −(retained × (${oddsNum}−1))          ← our LOSS when customer WINS
-   ev        = (1−fairWinProb)×retained + fairWinProb×netWin
-   ibBreakEven = 1/${oddsNum} = ${impliedProb.toFixed(4)}  ← client implied probability
+   retained   = ${wagerNum} × (1 − offload/100)
+   offloaded  = ${wagerNum} × (offload/100)
+   lossback   = $${lossbackAmt.toLocaleString('en-US', {maximumFractionDigits:2})} (given above — fixed regardless of offload %)
+   ibOdds     = ${oddsNum}   (same client odds)
 
-   KEY INSIGHT: if true win prob < ${impliedProb.toFixed(4)} (implied) → we have edge → TAKE
-                if true win prob > ${impliedProb.toFixed(4)} → customer has value → PASS
+   netLose    = retained − lossback            ← our actual PROFIT when client LOSES
+   netWin     = −(retained × (${oddsNum}−1))   ← our NET LOSS when client WINS
+   ev         = (1−fairWinProb)×netLose + fairWinProb×netWin
+   breakEven  = (retained − lossback) / (retained×${oddsNum} − lossback)
 
-5. VERDICT logic:
-   TAKE      → true win prob clearly below implied probability
-   LEAN_TAKE → close call, slight edge for us, manageable risk with offload
-   LEAN_PASS → customer likely has value, or stake too large even with offload
-   PASS      → true win prob above implied probability — customer has clear edge
+   KEY: if true win prob < breakEven → EV positive → TAKE
+        if true win prob > breakEven → EV negative → PASS
+
+5. VERDICT:
+   TAKE      → clear edge, EV positive, stake manageable even with lossback
+   LEAN_TAKE → slight edge, acceptable risk, offload adequately protects us
+   LEAN_PASS → thin edge or lossback erodes profit, consider higher offload %
+   PASS      → no edge or stake too large even at max offload
 
 6. WRITE aiAnalysis: exactly 4 paragraphs (separated by \\n\\n):
-   § 1 — ODDS ASSESSMENT: where is the client's price vs. fair value and market consensus? Are they getting value (bad for us) or getting a bad price (good for us)?
-   § 2 — FORM & STATISTICS: what does recent form, H2H and stats say about the true probability? Back your fair odds estimate.
-   § 3 — SHARP MONEY PROFILE: does this look like a sharp or recreational bet? How should that affect the offload % recommendation?
-   § 4 — TRADING DECISION: our implied break-even, EV, and exact recommendation on offload % and max retained stake.
+   § 1 — MARKET ASSESSMENT: fair value vs client price, major book comparison. Does the client have an edge on us?
+   § 2 — FORM & STATS: recent form, H2H, key factors backing your fair probability estimate.
+   § 3 — BANKROLL MANAGEMENT: given our early-stage position, what offload % makes sense? Explain the profit vs risk tradeoff for this specific stake. How does lossback change the economics?
+   § 4 — VERDICT & RECOMMENDATION: break-even probability, EV, recommended offload % with exact dollar figures showing what we make if they lose vs risk if they win.
 
 Respond ONLY with the following JSON. No markdown. No text before or after. No comments.
 
@@ -159,8 +177,9 @@ Respond ONLY with the following JSON. No markdown. No text before or after. No c
       return res.status(500).json({ success: false, error: 'Model returned invalid JSON. Please try again.' });
     }
 
-    data.inputOdds  = oddsNum;
-    data.inputWager = wagerNum;
+    data.inputOdds     = oddsNum;
+    data.inputWager    = wagerNum;
+    data.inputLossback = lossbackPct;
 
     return res.json({ success: true, data });
 

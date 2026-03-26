@@ -351,6 +351,10 @@ main { padding: 32px 0 80px; }
         <label>Wager ($)</label>
         <input type="number" id="wager" step="100" min="1" placeholder="e.g. 20,000" />
       </div>
+      <div class="field">
+        <label>Lossback % <span style="color:var(--muted);font-weight:400">(if applicable)</span></label>
+        <input type="number" id="lossback" step="1" min="0" max="15" placeholder="0 – 15" />
+      </div>
     </div>
     <button class="run-btn" id="runBtn" onclick="runAnalysis()">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 4.5l4 2.5-4 2.5V4.5z" fill="currentColor"/></svg>
@@ -659,10 +663,12 @@ $('sbUrl').addEventListener('paste', () => { setTimeout(importFixture, 50); });
 
 // ── Run analysis ──────────────────────────────────────────────────────────────
 async function runAnalysis() {
-  const matchup   = $('matchup').value.trim();
-  const selection = $('selection').value.trim();
-  const odds      = parseFloat($('odds').value);
-  const wager     = parseFloat($('wager').value);
+  const matchup      = $('matchup').value.trim();
+  const selection    = $('selection').value.trim();
+  const odds         = parseFloat($('odds').value);
+  const wager        = parseFloat($('wager').value);
+  const lossbackRaw  = parseFloat($('lossback').value);
+  const lossbackPct  = isNaN(lossbackRaw) ? 0 : Math.min(Math.max(lossbackRaw, 0), 15);
 
   if (!matchup)          return showError('Please enter the fixture.');
   if (!selection)        return showError('Please enter your selection.');
@@ -678,7 +684,7 @@ async function runAnalysis() {
     const resp = await fetch('/api/analyse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchup, selection, odds, wager }),
+      body: JSON.stringify({ matchup, selection, odds, wager, lossback: lossbackPct }),
     });
 
     let json;
@@ -716,25 +722,28 @@ async function runAnalysis() {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderOutput(d) {
-  const odds   = d.inputOdds;
-  const wager  = d.inputWager;
-  const offPct = d.recommendedOffload || 50;
+  const odds        = d.inputOdds;
+  const wager       = d.inputWager;
+  const lossbackPct = d.inputLossback || 0;
+  const offPct      = d.recommendedOffload || 50;
 
-  // ── Business model: liability split with iBankroll ───────────────────────
-  // Client places a bet we can't fully absorb. We retain X%, pass Y% to
-  // iBankroll at the SAME client odds. No commission — pure proportional share.
-  // Profit comes from our book edge (offering odds below fair value).
-  const retained  = d.retained  ?? wager * (1 - offPct / 100);  // our share of the liability
-  const offloaded = d.offloaded ?? wager * (offPct / 100);       // iBankroll's share
-  // If bet LOSES → we keep our stake (we win as bookmaker)
-  const netLose   = d.netLose   ?? retained;
-  // If bet WINS → we pay out profit on our retained share (negative)
-  const netWin    = d.netWin    ?? -(retained * (odds - 1));
+  // ── Business model: hedge with iBankroll ─────────────────────────────────
+  // We send `offloaded` to iBankroll as a hedge at client odds.
+  // We keep `retained` on our book. No commission — pure proportional split.
+  // Lossback = % of full wager we refund to client if they lose (our direct cost).
+  const retained  = d.retained  ?? wager * (1 - offPct / 100);
+  const offloaded = d.offloaded ?? wager * (offPct / 100);
+  const lossback  = wager * (lossbackPct / 100);               // cost we pay if client LOSES
+  const grossExp  = retained * odds;                            // gross payout if client WINS
+  // Net P&L scenarios:
+  const netLose   = d.netLose   ?? (retained - lossback);      // profit when client LOSES (after lossback)
+  const netWin    = d.netWin    ?? -(retained * (odds - 1));    // net loss when client WINS
   // EV uses AI's estimated true win probability
   const aiWinProb = d.impliedProb || (1 / odds);
-  const ev        = d.ev        ?? ((1 - aiWinProb) * netLose + aiWinProb * netWin);
-  // Break-even = client implied probability (1/odds); we're EV+ if true prob < this
-  const ibBreakEven = 1 / odds;
+  const ev        = d.ev ?? ((1 - aiWinProb) * netLose + aiWinProb * netWin);
+  // Break-even win% accounting for lossback cost
+  // Solve: (1-p)(retained - lossback) + p×netWin = 0
+  const ibBreakEven = (retained - lossback) / (retained * odds - lossback);
 
   // ── Verdict ──
   const cls = { TAKE:'take', LEAN_TAKE:'lean-take', LEAN_PASS:'lean-pass', PASS:'pass' }[d.verdict] || 'lean-pass';
@@ -755,21 +764,19 @@ function renderOutput(d) {
   $('riskLabel').textContent = (d.riskLabel || '').toUpperCase() + ' RISK';
 
   // ── Key Numbers ──
-  // Gross exposure = what we'd have to pay out from our side if bet wins (retained × odds)
-  // e.g. $8.5K retained × 2.14 = $18.19K — this is the "risk" figure operators use
-  const grossExposure = retained * odds;
   $('knRetained').textContent    = money(retained);
-  $('knRetainedSub').textContent = `${(100-offPct).toFixed(0)}% kept — our profit if bet loses`;
+  $('knRetainedSub').textContent = `${(100-offPct).toFixed(0)}% on our book — profit if client loses`;
   $('knOffloaded').textContent   = money(offloaded);
-  $('knOffloadedSub').textContent= `${offPct}% hedged — iBankroll pays us ${dp(odds)}× if wins`;
-  // Card 3: our UPSIDE — profit when bet loses (we keep retained stake, iBankroll keeps theirs)
+  $('knOffloadedSub').textContent= `${offPct}% hedged — iBankroll pays ${dp(odds)}× back if wins`;
+  // Card 3: net profit when client LOSES (after lossback deducted)
   $('knWin').textContent         = money(netLose, true);
   $('knWin').className           = 'kn-value pos';
-  $('knWinSub').textContent      = `Client loses — we keep $${Math.round(retained).toLocaleString()}, iBankroll keeps $${Math.round(offloaded).toLocaleString()}`;
-  // Card 4: gross payout exposure if bet wins (retained × odds = total payout our side must fund)
-  $('knLose').textContent        = money(grossExposure, true);
+  const lbNote = lossbackPct > 0 ? ` after $${Math.round(lossback).toLocaleString()} lossback` : '';
+  $('knWinSub').textContent      = `Keep $${Math.round(retained).toLocaleString()}${lbNote} — iBankroll keeps $${Math.round(offloaded).toLocaleString()}`;
+  // Card 4: gross payout exposure (retained × odds) — the "risk" figure
+  $('knLose').textContent        = money(grossExp, true);
   $('knLose').className          = 'kn-value neg';
-  $('knLoseSub').textContent     = `Net P&L: ${money(netWin,true)} after $${Math.round(retained).toLocaleString()} stake held`;
+  $('knLoseSub').textContent     = `Net P&L: ${money(netWin,true)} — iBankroll covers $${Math.round(offloaded*(odds-1)).toLocaleString()}`;
 
   // ── Odds Table ──
   const mktOdds = d.marketOdds || [];
@@ -788,17 +795,25 @@ function renderOutput(d) {
 
   // ── P&L ──
   const edgeVsM  = d.edgeVsMarket || 0;
-  // Green if AI's true win prob is below implied prob (we have edge), red if above
   const bepColor = aiWinProb <= ibBreakEven ? 'var(--green)' : 'var(--danger)';
-  $('pnlRows').innerHTML = [
-    ['Profit if client LOSES',       `<span class="pnl-val grn">${money(netLose,true)}</span>`],
-    ['Gross exposure if client WINS',`<span class="pnl-val red">${money(grossExposure,true)}</span>`],
-    ['Net P&L if client WINS',       `<span class="pnl-val red">${money(netWin,true)}</span>`],
-    ['Expected value (our share)',   `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
-    ['Client implied win%',          `<span class="pnl-val">${pct(1/odds,1)}</span>`],
-    ['AI fair win probability',      `<span class="pnl-val" style="color:${bepColor}">${pct(aiWinProb,1)} <span style="font-size:10px;opacity:.7">${aiWinProb<=ibBreakEven?'✓ EV+':'✗ EV−'}</span></span>`],
-    ['Edge vs market',               `<span class="pnl-val ${edgeVsM>=0?'grn':'red'}">${(edgeVsM>=0?'+':'')+(edgeVsM*100).toFixed(2)}%</span>`],
-  ].map(([l,v]) => `<div class="pnl-row"><span class="pnl-label">${l}</span>${v}</div>`).join('');
+  const pnlRows = [
+    ['Retained on book',              `<span class="pnl-val">${money(retained)}</span>`],
+    ['Hedged to iBankroll',           `<span class="pnl-val acc">${money(offloaded)}</span>`],
+  ];
+  if (lossbackPct > 0) {
+    pnlRows.push(['Lossback cost (if client loses)', `<span class="pnl-val red">−${money(lossback)}</span>`]);
+  }
+  pnlRows.push(
+    ['Profit if client LOSES',        `<span class="pnl-val grn">${money(netLose,true)}</span>`],
+    ['Gross exposure if client WINS', `<span class="pnl-val red">${money(grossExp,true)}</span>`],
+    ['Net P&L if client WINS',        `<span class="pnl-val red">${money(netWin,true)}</span>`],
+    ['Expected value (EV)',           `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
+    ['Client implied win%',           `<span class="pnl-val">${pct(1/odds,1)}</span>`],
+    ['Break-even win% (incl. lossback)', `<span class="pnl-val" style="color:${bepColor}">${pct(ibBreakEven,1)} <span style="font-size:10px;opacity:.7">${aiWinProb<=ibBreakEven?'✓ EV+':'✗ EV−'}</span></span>`],
+    ['AI fair win probability',       `<span class="pnl-val acc">${pct(aiWinProb,1)}</span>`],
+    ['Edge vs market',                `<span class="pnl-val ${edgeVsM>=0?'grn':'red'}">${(edgeVsM>=0?'+':'')+(edgeVsM*100).toFixed(2)}%</span>`],
+  );
+  $('pnlRows').innerHTML = pnlRows.map(([l,v]) => `<div class="pnl-row"><span class="pnl-label">${l}</span>${v}</div>`).join('');
 
   // ── Risk Meter ──
   const rs = d.riskScore || 50;
