@@ -109,7 +109,7 @@ It does NOT affect what we owe if the client wins.
    § 1 — MARKET ASSESSMENT: fair value vs client price, major book comparison. Does the client have an edge on us?
    § 2 — FORM & STATS: recent form, H2H, key factors backing your fair probability estimate.
    § 3 — BANKROLL MANAGEMENT: given our early-stage position, what offload % makes sense? Explain the profit vs risk tradeoff for this specific stake. How does lossback change the economics?
-   § 4 — VERDICT & RECOMMENDATION: break-even probability, EV, recommended offload % with exact dollar figures showing what we make if they lose vs risk if they win.
+   § 4 — VERDICT & RECOMMENDATION: break-even probability, EV, recommended offload % with exact dollar figures showing what we make if they lose vs what we owe if they win (gross payout split: we pay X, iBankroll pays Y).
 
 Respond ONLY with the following JSON. No markdown. No text before or after. No comments.
 
@@ -151,9 +151,9 @@ Respond ONLY with the following JSON. No markdown. No text before or after. No c
   "publicVsSharp": "string",
   "weatherInjuries": "string",
   "scenarios": [
-    {"label": "Best case",  "pnl": number, "desc": "string"},
-    {"label": "Base case",  "pnl": number, "desc": "string"},
-    {"label": "Worst case", "pnl": number, "desc": "string"}
+    {"label": "Best case",  "pnl": number, "desc": "string — client LOSES, frame as: we keep $X profit (after lossback if any)"},
+    {"label": "Base case",  "pnl": number, "desc": "string — EV-weighted outcome"},
+    {"label": "Worst case", "pnl": number, "desc": "string — client WINS, frame as: we pay $X, iBankroll pays $Y. Do NOT use net/retained math — just state the gross split."}
   ]
 }`;
 

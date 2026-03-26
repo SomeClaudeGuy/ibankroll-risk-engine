@@ -809,8 +809,9 @@ function renderOutput(d) {
     ['iBankroll pays if client WINS', `<span class="pnl-val red">−${money(offloaded*odds)}</span>`],
     ['Expected value (EV)',           `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
     ['Client implied win%',           `<span class="pnl-val">${pct(1/odds,1)}</span>`],
-    ['Break-even win% (incl. lossback)', `<span class="pnl-val" style="color:${bepColor}">${pct(ibBreakEven,1)} <span style="font-size:10px;opacity:.7">${aiWinProb<=ibBreakEven?'✓ EV+':'✗ EV−'}</span></span>`],
-    ['AI fair win probability',       `<span class="pnl-val acc">${pct(aiWinProb,1)}</span>`],
+    ['Our implied win% (client loses)',`<span class="pnl-val grn">${pct(1 - 1/odds,1)}</span>`],
+    ['Break-even: we need client to lose >', `<span class="pnl-val" style="color:${bepColor}">${pct(1-ibBreakEven,1)} <span style="font-size:10px;opacity:.7">${aiWinProb<=ibBreakEven?'✓ EV+':'✗ EV−'}</span></span>`],
+    ['AI: chance client LOSES (we win)',`<span class="pnl-val acc">${pct(1 - aiWinProb,1)}</span>`],
     ['Edge vs market',                `<span class="pnl-val ${edgeVsM>=0?'grn':'red'}">${(edgeVsM>=0?'+':'')+(edgeVsM*100).toFixed(2)}%</span>`],
   );
   $('pnlRows').innerHTML = pnlRows.map(([l,v]) => `<div class="pnl-row"><span class="pnl-label">${l}</span>${v}</div>`).join('');
