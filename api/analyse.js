@@ -9,7 +9,9 @@ function extractText(content) {
 }
 
 function parseJSON(raw) {
-  const match = raw.match(/\{[\s\S]*\}/);
+  // Strip markdown code fences if present
+  const stripped = raw.replace(/```[\w]*\n?/g, '').trim();
+  const match = stripped.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('No JSON object found in response');
   return JSON.parse(match[0]);
 }
@@ -41,7 +43,13 @@ async function callClaude(prompt, maxTokens, useSearch = false) {
     params.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
   }
   const response = await withRetry(() => client.messages.create(params));
-  return parseJSON(extractText(response.content));
+  const raw = extractText(response.content);
+  try {
+    return parseJSON(raw);
+  } catch (e) {
+    console.error('[analyse] JSON parse failed. Raw output:', raw.slice(0, 300));
+    throw new Error('Model returned invalid JSON. Please try again.');
+  }
 }
 
 // ── Phase 1: Market Intelligence (with live web search) ──────────────────────
@@ -93,26 +101,26 @@ Client stake:  $${wagerNum.toLocaleString('en-US')}
 Lossback:      ${lossbackPct > 0 ? `${lossbackPct}% = $${lossbackAmt.toFixed(2)} refunded to client if they LOSE` : 'None'}
 
 MARKET CONTEXT (from Phase 1):
-Sport/Market:  ${p1.detectedSport} / ${p1.detectedMarket}
-Fair odds:     ${p1.fairOdds}  |  Fair win prob: ${(p1.fairWinProb*100).toFixed(1)}%
+Sport/Market:  ${p1.detectedSport || 'Unknown'} / ${p1.detectedMarket || 'Unknown'}
+Fair odds:     ${p1.fairOdds || oddsNum}  |  Fair win prob: ${((p1.fairWinProb || 1/oddsNum)*100).toFixed(1)}%
 Edge vs market: ${((p1.edgeVsMarket||0)*100).toFixed(2)}%
-Bettor profile: ${p1.sharpOrRec}
-Line movement:  ${p1.lineMovement}
+Bettor profile: ${p1.sharpOrRec || 'unknown'}
+Line movement:  ${p1.lineMovement || 'unknown'}
 
 OFFLOAD SCORING:
 Stake $${wagerNum.toLocaleString('en-US')}: ${wagerNum < 5000 ? '0-15% base offload' : wagerNum < 15000 ? '20-40% base offload' : wagerNum < 30000 ? '40-60% base offload' : '60-80% base offload'}
 Bettor sharp: ${p1.sharpOrRec === 'sharp' ? '+15%' : p1.sharpOrRec === 'recreational' ? '-10%' : '+5%'}
-Coin-flip match (45-55% prob): ${p1.fairWinProb >= 0.45 && p1.fairWinProb <= 0.55 ? '+10%' : '0%'}
-Client has edge on us (fairWinProb > 1/clientOdds): ${p1.fairWinProb > 1/oddsNum ? 'YES +15%' : 'NO 0%'}
+Coin-flip match (45-55% prob): ${(p1.fairWinProb||0) >= 0.45 && (p1.fairWinProb||0) <= 0.55 ? '+10%' : '0%'}
+Client has edge on us (fairWinProb > 1/clientOdds): ${(p1.fairWinProb||0) > 1/oddsNum ? 'YES +15%' : 'NO 0%'}
 Reverse line movement detected: ${p1.reverseLineMovement ? 'YES - sharp signal, +15%' : 'NO'}
 Public vs sharp split: ${p1.publicVsSharp || 'unknown'}
 
 FORMULAS (use recommended offload %):
-retained   = ${wagerNum} × (1 − offload/100)
+retained   = ${wagerNum} × (1 - offload/100)
 offloaded  = ${wagerNum} × (offload/100)
-netLose    = retained − ${lossbackAmt.toFixed(2)}
-netWin     = −(retained × (${oddsNum}−1))
-ev         = (1−${p1.fairWinProb.toFixed(4)}) × netLose + ${p1.fairWinProb.toFixed(4)} × netWin
+netLose    = retained - ${lossbackAmt.toFixed(2)}
+netWin     = -(retained × (${oddsNum}-1))
+ev         = (1-${(p1.fairWinProb || 1/oddsNum).toFixed(4)}) × netLose + ${(p1.fairWinProb || 1/oddsNum).toFixed(4)} × netWin
 
 Return ONLY this JSON:
 {
@@ -216,9 +224,10 @@ module.exports = async (req, res) => {
     return res.json({ success: true, phase: phaseNum, data });
 
   } catch (err) {
-    console.error('[analyse] Error:', err);
+    console.error('[analyse] Error:', err.status, err.message);
     if (err.status === 401) return res.status(500).json({ success: false, error: 'Invalid Anthropic API key.' });
     if (err.status === 429) return res.status(429).json({ success: false, error: 'Rate limit reached. Please wait a moment.' });
+    if (err.status === 529) return res.status(503).json({ success: false, error: 'Anthropic API is overloaded. Please try again in a moment.' });
     return res.status(500).json({ success: false, error: err.message || 'Internal server error.' });
   }
 };

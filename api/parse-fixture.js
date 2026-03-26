@@ -9,7 +9,8 @@ function extractText(content) {
 }
 
 function parseJSON(raw) {
-  const match = raw.match(/\{[\s\S]*\}/);
+  const stripped = raw.replace(/```[\w]*\n?/g, '').trim();
+  const match = stripped.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('No JSON found');
   return JSON.parse(match[0]);
 }
