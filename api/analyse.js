@@ -52,41 +52,50 @@ async function callClaude(prompt, maxTokens, useSearch = false) {
   }
 }
 
-// ── Phase 1: Market Intelligence (web search for live odds + form) ────────────
+// ── Phase 1: Market Intelligence (model knowledge — no web search) ────────────
 async function phase1(matchup, selection, oddsNum) {
-  const prompt = `You are a sharp sports trader. Search for current odds on this fixture across major bookmakers, then assess fair value and market context.
+  const impliedProb = (1 / oddsNum * 100).toFixed(1);
+  const prompt = `You are a sharp sports trading analyst with deep knowledge of global sports markets.
 
-Fixture: ${matchup}
+Fixture:   ${matchup}
 Selection: ${selection}
-Our price: ${oddsNum} (decimal)
+Our price: ${oddsNum} decimal (implied ${impliedProb}% win probability)
 
-Search for: "${matchup} odds" to get current prices from Pinnacle, Bet365, DraftKings, FanDuel, PointsBet.
-Also search for: "${matchup} injuries team news" for form and lineup intel.
+Using your knowledge of this fixture, teams, competition, recent form and market context:
 
-Return ONLY this JSON (no markdown):
+1. Identify the sport, league and market type
+2. Estimate the TRUE fair odds and win probability for the selection — strip the bookmaker margin
+3. Compare our price (${oddsNum}) against what Pinnacle, Bet365 and sharp books would price this
+4. Assess whether this is a sharp or recreational bet (sharp = line moved toward selection, known profitable bettor profile, or our price is generous vs fair)
+5. Summarise recent form, H2H, and any injury/news context you know about
+6. Note any line movement signals or reverse line movement indicators
+
+Be specific to THIS fixture. Do not give generic advice.
+
+Return ONLY valid JSON, no markdown:
 {
   "detectedSport": "string",
-  "detectedMarket": "string",
+  "detectedMarket": "string (e.g. Match Winner, Asian Handicap -1.5, Total Over 2.5)",
   "fairOdds": number,
   "fairWinProb": number,
   "edgeVsMarket": number,
   "openingLine": number,
   "marketOdds": [
-    {"book": "Pinnacle", "price": number},
-    {"book": "Bet365", "price": number},
+    {"book": "Pinnacle",   "price": number},
+    {"book": "Bet365",     "price": number},
     {"book": "DraftKings", "price": number},
-    {"book": "FanDuel", "price": number},
-    {"book": "PointsBet", "price": number}
+    {"book": "FanDuel",    "price": number},
+    {"book": "PointsBet",  "price": number}
   ],
   "sharpOrRec": "sharp" | "recreational" | "unknown",
-  "publicVsSharp": "one sentence",
-  "recentForm": "two sentences on recent form and H2H",
-  "lineMovement": "one sentence on opening line vs current",
+  "publicVsSharp": "one specific sentence about public vs sharp split for this fixture",
+  "recentForm": "two sentences covering last 5 results and H2H for both sides",
+  "lineMovement": "one sentence on how this market typically moves and current state",
   "reverseLineMovement": true | false,
-  "sharpAction": "one sentence on sharp money signals",
-  "weatherInjuries": "one sentence on injuries or conditions"
+  "sharpAction": "one sentence on sharp money indicators for this selection",
+  "weatherInjuries": "one sentence on known injuries, suspensions or conditions"
 }`;
-  return callClaude(prompt, 700, true);
+  return callClaude(prompt, 700, false);
 }
 
 // ── Phase 2: Risk & Offload ──────────────────────────────────────────────────

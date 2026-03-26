@@ -711,7 +711,7 @@ async function runAnalysis() {
     setTimeout(() => $('output').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
     // ── Phase 2: Risk & Offload ────────────────────────────────────
-    await new Promise(r => setTimeout(r, 800)); // brief gap to avoid rate limits
+    await new Promise(r => setTimeout(r, 1200)); // gap to avoid rate limits
     activateStep(2);
     const p2 = await callPhase(2, { p1 });
     activateStep(3);
