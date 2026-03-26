@@ -172,7 +172,7 @@ Return ONLY valid JSON, no markdown, no extra text:
   "offloadReasoning": "2 sentences explaining exactly why this offload % was chosen based on stake size, bettor profile and match risk",
   "verdict": "TAKE" | "LEAN_TAKE" | "LEAN_PASS" | "PASS",
   "verdictReason": "max 20 words",
-  "aiAnalysis": "3 paragraphs: 1) Market assessment and fair value. 2) Why this offload % - stake size, bettor profile, match volatility. 3) Commercial recommendation with specific numbers.",
+  "aiAnalysis": "2-3 concise paragraphs max: market assessment, offload reasoning, commercial verdict with key numbers.",
   "scenarios": [
     {"label": "Best case",  "pnl": number, "desc": "string"},
     {"label": "Base case",  "pnl": number, "desc": "string"},
@@ -182,16 +182,21 @@ Return ONLY valid JSON, no markdown, no extra text:
 
     const response = await withRetry(() => client.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: 1800,
+      max_tokens: 2500,
       messages:   [{ role: 'user', content: prompt }],
     }));
+
+    if (response.stop_reason === 'max_tokens') {
+      console.error('[analyse] Response truncated at max_tokens — raw length:', extractText(response.content).length);
+      throw new Error('Response was too long and got cut off. Please try again.');
+    }
 
     const raw  = extractText(response.content);
     let data;
     try {
       data = parseJSON(raw);
     } catch (e) {
-      console.error('[analyse] JSON parse failed. Raw:', raw.slice(0, 400));
+      console.error('[analyse] JSON parse failed. stop_reason:', response.stop_reason, '| Raw:', raw.slice(0, 500));
       throw new Error('Model returned invalid JSON. Please try again.');
     }
 
