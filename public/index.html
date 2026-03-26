@@ -681,54 +681,35 @@ async function runAnalysis() {
   $('runBtn').disabled = true;
   resetSteps();
 
-  const base = { matchup, selection, odds, wager, lossback: lossbackPct };
+  try {
+    // Single API call — all analysis in one request, no rate-limit stacking
+    activateStep(0);
+    setTimeout(() => activateStep(1), 3000);
+    setTimeout(() => activateStep(2), 6000);
+    setTimeout(() => activateStep(3), 9000);
 
-  async function callPhase(phase, context) {
     const resp = await fetch('/api/analyse', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...base, phase, context }),
+      body:    JSON.stringify({ matchup, selection, odds, wager, lossback: lossbackPct }),
     });
+
     if (resp.status === 504 || resp.status === 502) throw new Error('Analysis timed out - please try again.');
-    if (resp.status === 429) throw new Error('Too many requests - please wait 10 seconds and try again.');
-    if (resp.status === 503) throw new Error('AI service temporarily overloaded - please try again in a moment.');
+    if (resp.status === 429) throw new Error('Too many requests - please wait 15 seconds and try again.');
+    if (resp.status === 503) throw new Error('AI service temporarily overloaded - please try again.');
     if (!resp.ok) throw new Error(`Server error (${resp.status}) - please try again.`);
+
     const json = await resp.json();
     if (!json.success) throw new Error(json.error || 'Unknown server error.');
-    return json.data;
-  }
 
-  try {
-    // ── Phase 1: Market Intelligence ──────────────────────────────
-    activateStep(0);
-    const p1 = await callPhase(1, {});
-    activateStep(1);
-    completeSteps(1);
-
-    // Render market data immediately
-    renderPhase1(p1, odds, wager, lossbackPct);
-    $('output').classList.add('active');
-    setTimeout(() => $('output').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-
-    // ── Phase 2: Risk & Offload ────────────────────────────────────
-    await new Promise(r => setTimeout(r, 1200)); // gap to avoid rate limits
-    activateStep(2);
-    const p2 = await callPhase(2, { p1 });
-    activateStep(3);
-    completeSteps(3);
-
-    // Render risk data
-    renderPhase2(p2, p1, odds, wager, lossbackPct);
-
-    // ── Phase 3: Verdict ───────────────────────────────────────────
-    await new Promise(r => setTimeout(r, 800)); // brief gap to avoid rate limits
-    activateStep(4);
-    const p3 = await callPhase(3, { p1, p2 });
+    const d = json.data;
     completeSteps(4);
     stopThinking();
 
-    // Render verdict
-    renderPhase3(p3, p2, odds, wager, lossbackPct);
+    // Render everything at once
+    renderOutput(d, odds, wager, lossbackPct);
+    $('output').classList.add('active');
+    setTimeout(() => $('output').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
   } catch (err) {
     stopThinking();
@@ -906,6 +887,13 @@ function renderPhase3(p3, p2, odds, wager, lossbackPct) {
   // AI Analysis
   $('aiBody').innerHTML = (p3.aiAnalysis||'').split('\n\n').filter(Boolean)
     .map(p => `<p>${esc(p)}</p>`).join('');
+}
+
+// ── Single-call render: combines all phase renders ────────────────────────────
+function renderOutput(d, odds, wager, lossbackPct) {
+  renderPhase1(d, odds, wager, lossbackPct);
+  renderPhase2(d, d, odds, wager, lossbackPct);
+  renderPhase3(d, d, odds, wager, lossbackPct);
 }
 
 function diffBadge(price, ref) {
