@@ -77,7 +77,7 @@ module.exports = async (req, res) => {
   // ── Mode A: URL contains team names ────────────────────────────────────────
   // e.g. /nba/boston-celtics-oklahoma-city-thunder-2648126436443041833
   if (fixtureSlug) {
-    console.log(`[parse-fixture] Mode A — fixture slug: "${fixtureSlug}"`);
+    console.log(`[parse-fixture] Mode A - fixture slug: "${fixtureSlug}"`);
 
     const prompt = `You are a sports data specialist. Search for the current betting odds for this fixture.
 
@@ -88,7 +88,7 @@ Search for: "${fixtureSlug} odds betting ${league?.label || ''}"
 
 Identify the two teams/players from the slug and find their current odds on this specific matchup.
 
-Respond ONLY with valid JSON — no markdown, no extra text:
+Respond ONLY with valid JSON - no markdown, no extra text:
 
 {
   "fixture": "Team A vs Team B",
@@ -122,7 +122,7 @@ Include all available markets. Use decimal odds throughout.`;
         throw new Error('Incomplete fixture data');
       }
 
-      // Mode A: single fixture — return directly so frontend skips the fixture picker
+      // Mode A: single fixture - return directly so frontend skips the fixture picker
       return res.json({
         success: true,
         mode: 'single',
@@ -136,15 +136,15 @@ Include all available markets. Use decimal odds throughout.`;
       });
 
     } catch (err) {
-      console.error('[parse-fixture] Mode A failed:', err.message, '— falling back to Mode B');
+      console.error('[parse-fixture] Mode A failed:', err.message, '- falling back to Mode B');
       // Fall through to Mode B
     }
   }
 
-  // ── Mode B: URL has no team names — search for upcoming league fixtures ────
+  // ── Mode B: URL has no team names - search for upcoming league fixtures ────
   // e.g. /sports/basketball/usa/nba-1669819088278523904
   const leagueLabel = league?.label || 'sports';
-  console.log(`[parse-fixture] Mode B — league: "${leagueLabel}"`);
+  console.log(`[parse-fixture] Mode B - league: "${leagueLabel}"`);
 
   const prompt = `You are a sports data specialist. Search for upcoming ${leagueLabel} fixtures with betting odds.
 
@@ -152,7 +152,7 @@ Search for: "upcoming ${leagueLabel} games odds today this week"
 
 Return as many upcoming fixtures as you can find (aim for 6-10).
 
-Respond ONLY with valid JSON — no markdown, no extra text:
+Respond ONLY with valid JSON - no markdown, no extra text:
 
 {
   "sport": "${league?.sport || 'Unknown'}",

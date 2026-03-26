@@ -14,22 +14,28 @@ function parseJSON(raw) {
   return JSON.parse(match[0]);
 }
 
-async function callClaude(prompt, maxTokens) {
-  const response = await client.messages.create({
+async function callClaude(prompt, maxTokens, useSearch = false) {
+  const params = {
     model: 'claude-sonnet-4-6',
     max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
-  });
+  };
+  if (useSearch) {
+    params.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+  }
+  const response = await client.messages.create(params);
   return parseJSON(extractText(response.content));
 }
 
-// ── Phase 1: Market Intelligence ─────────────────────────────────────────────
+// ── Phase 1: Market Intelligence (with live web search) ──────────────────────
 async function phase1(matchup, selection, oddsNum) {
-  const prompt = `You are a senior sports odds analyst. Assess this selection using your knowledge of current markets.
+  const prompt = `You are a senior sports odds analyst. Use web search to find CURRENT live odds for this fixture from major bookmakers, then assess the bet.
 
 Fixture:   ${matchup}
 Selection: ${selection}
 Our price: ${oddsNum} (decimal)
+
+Search for: "${matchup} ${selection} odds" to find current prices on Pinnacle, Bet365, DraftKings, FanDuel, PointsBet and any other major books. Also search for recent form, injuries and team news.
 
 Return ONLY this JSON (no markdown, no text outside JSON):
 {
@@ -47,11 +53,11 @@ Return ONLY this JSON (no markdown, no text outside JSON):
   ],
   "sharpOrRec": "sharp" | "recreational" | "unknown",
   "recentForm": "2 sentences on recent form and H2H",
-  "lineMovement": "1 sentence on expected line direction",
+  "lineMovement": "1 sentence on line movement since open",
   "sharpAction": "1 sentence on sharp vs public split",
-  "weatherInjuries": "1 sentence on injuries or conditions (N/A if none)"
+  "weatherInjuries": "1 sentence on injuries or conditions (none if N/A)"
 }`;
-  return callClaude(prompt, 600);
+  return callClaude(prompt, 800, true);
 }
 
 // ── Phase 2: Risk & Offload ──────────────────────────────────────────────────
@@ -117,7 +123,7 @@ Stake:      $${wagerNum.toLocaleString('en-US')}
 
 RISK SUMMARY:
 Fair win prob:      ${(p1.fairWinProb*100).toFixed(1)}%  (client implied: ${(100/oddsNum).toFixed(1)}%)
-Edge for us:        ${p1.fairWinProb < 1/oddsNum ? 'YES — client is paying above fair value' : 'NO — client has edge on this price'}
+Edge for us:        ${p1.fairWinProb < 1/oddsNum ? 'YES - client is paying above fair value' : 'NO - client has edge on this price'}
 Bettor:             ${p1.sharpOrRec}
 Risk score:         ${p2.riskScore}/100 (${p2.riskLabel})
 Recommended offload: ${p2.recommendedOffload}%
@@ -133,9 +139,9 @@ Return ONLY this JSON:
   "verdictReason": "max 20 words",
   "aiAnalysis": "Market: fair odds and whether client has edge.\\n\\nOffload logic: why ${p2.recommendedOffload}% offload for this specific bet.\\n\\nVerdict: gross split if wins (we pay $${grossExp.toFixed(0)}, iBankroll $${ibPayout.toFixed(0)}), profit if loses, EV and recommendation.",
   "scenarios": [
-    {"label": "Best case",  "pnl": ${p2.netLose.toFixed(2)}, "desc": "Client loses — we keep $${p2.netLose.toFixed(0)} profit${lossbackPct > 0 ? ' after lossback' : ''}. iBankroll keeps their $${p2.offloaded.toFixed(0)}."},
+    {"label": "Best case",  "pnl": ${p2.netLose.toFixed(2)}, "desc": "Client loses - we keep $${p2.netLose.toFixed(0)} profit${lossbackPct > 0 ? ' after lossback' : ''}. iBankroll keeps their $${p2.offloaded.toFixed(0)}."},
     {"label": "Base case",  "pnl": ${p2.ev.toFixed(2)}, "desc": "EV-weighted outcome across fair probabilities."},
-    {"label": "Worst case", "pnl": ${(-grossExp).toFixed(2)}, "desc": "Client wins — we pay $${grossExp.toFixed(0)}, iBankroll pays $${ibPayout.toFixed(0)}."}
+    {"label": "Worst case", "pnl": ${(-grossExp).toFixed(2)}, "desc": "Client wins - we pay $${grossExp.toFixed(0)}, iBankroll pays $${ibPayout.toFixed(0)}."}
   ]
 }`;
   return callClaude(prompt, 700);
@@ -167,7 +173,7 @@ module.exports = async (req, res) => {
     const phaseNum = parseInt(phase) || 1;
     const ctx      = context || {};
 
-    console.log(`[analyse] Phase ${phaseNum} — ${matchup} / ${selection} @ ${oddsNum}`);
+    console.log(`[analyse] Phase ${phaseNum} - ${matchup} / ${selection} @ ${oddsNum}`);
 
     let data;
     if (phaseNum === 1) {

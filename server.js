@@ -20,5 +20,5 @@ app.listen(PORT, () => {
   console.log(`\n  iBankroll Risk Engine`);
   console.log(`  ─────────────────────────────────`);
   console.log(`  Server:  http://localhost:${PORT}`);
-  console.log(`  API Key: ${process.env.ANTHROPIC_API_KEY ? '✓ Set' : '✗ MISSING — set ANTHROPIC_API_KEY'}\n`);
+  console.log(`  API Key: ${process.env.ANTHROPIC_API_KEY ? '✓ Set' : '✗ MISSING - set ANTHROPIC_API_KEY'}\n`);
 });
