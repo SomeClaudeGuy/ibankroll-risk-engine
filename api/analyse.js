@@ -121,19 +121,17 @@ It does NOT affect what we owe if the client wins.
    LEAN_PASS → thin edge or lossback erodes profit, consider higher offload %
    PASS      → no edge or stake too large even at max offload
 
-6. WRITE aiAnalysis: exactly 4 paragraphs (separated by \\n\\n):
-   § 1 — MARKET ASSESSMENT: fair value vs client price, major book comparison. Does the client have an edge on us?
-   § 2 — FORM & STATS: recent form, H2H, key factors backing your fair probability estimate.
-   § 3 — BANKROLL MANAGEMENT: given our early-stage position, what offload % makes sense? Explain the profit vs risk tradeoff for this specific stake. How does lossback change the economics?
-   § 4 — VERDICT & RECOMMENDATION: break-even probability, EV, recommended offload % with exact dollar figures showing what we make if they lose vs what we owe if they win (gross payout split: we pay X, iBankroll pays Y).
+6. WRITE aiAnalysis: exactly 3 short paragraphs (separated by \\n\\n):
+   § 1 — MARKET: fair odds vs client price, sharp or recreational, line movement, injuries/news.
+   § 2 — OFFLOAD LOGIC: why this specific offload % — stake size, match risk, bettor profile.
+   § 3 — VERDICT: gross payout split (we pay $X / iBankroll $Y if wins), profit if loses, EV.
 
-Respond ONLY with the following JSON. No markdown. No text before or after. No comments.
+Respond ONLY with valid JSON. No markdown, no text outside the JSON.
 
 {
   "detectedSport": "string",
   "detectedMarket": "string",
   "recommendedOffload": integer,
-  "recommendedMargin": 0,
   "ibOdds": number,
   "retained": number,
   "offloaded": number,
@@ -141,7 +139,7 @@ Respond ONLY with the following JSON. No markdown. No text before or after. No c
   "netLose": number,
   "ev": number,
   "verdict": "TAKE" | "LEAN_TAKE" | "LEAN_PASS" | "PASS",
-  "verdictReason": "string max 25 words",
+  "verdictReason": "string max 20 words",
   "riskScore": integer 1-100,
   "riskLabel": "Low" | "Moderate" | "High" | "Very High",
   "fairOdds": number,
@@ -153,23 +151,13 @@ Respond ONLY with the following JSON. No markdown. No text before or after. No c
     {"book": "FanDuel",    "price": number},
     {"book": "PointsBet",  "price": number}
   ],
-  "optimalOffload": integer,
   "suggestedMaxWager": number,
   "edgeVsMarket": number,
-  "kellyFraction": number,
-  "clv": number,
-  "recentForm": "2-3 sentences on both sides recent form and H2H",
-  "lineMovement": "1-2 sentences on expected line movement and why",
-  "keyRisks": "2-3 specific risks to our book position",
-  "aiAnalysis": "paragraph 1\\n\\nparagraph 2\\n\\nparagraph 3\\n\\nparagraph 4",
-  "breakEvenProb": number,
-  "sharpAction": "string",
-  "publicVsSharp": "string",
-  "weatherInjuries": "string",
+  "aiAnalysis": "paragraph 1\\n\\nparagraph 2\\n\\nparagraph 3",
   "scenarios": [
-    {"label": "Best case",  "pnl": number, "desc": "string — client LOSES, frame as: we keep $X profit (after lossback if any)"},
-    {"label": "Base case",  "pnl": number, "desc": "string — EV-weighted outcome"},
-    {"label": "Worst case", "pnl": number, "desc": "string — client WINS, frame as: we pay $X, iBankroll pays $Y. Do NOT use net/retained math — just state the gross split."}
+    {"label": "Best case",  "pnl": number, "desc": "client LOSES — we keep $X profit"},
+    {"label": "Base case",  "pnl": number, "desc": "EV-weighted outcome"},
+    {"label": "Worst case", "pnl": number, "desc": "client WINS — we pay $X, iBankroll pays $Y"}
   ]
 }`;
 
@@ -177,7 +165,7 @@ Respond ONLY with the following JSON. No markdown. No text before or after. No c
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2500,
+      max_tokens: 1400,
       messages: [{ role: 'user', content: prompt }],
     });
 

@@ -837,30 +837,16 @@ function renderOutput(d) {
     .map(p => `<p>${esc(p)}</p>`).join('');
 
   // ── Recommendation ──
-  const kelly = d.kellyFraction || 0;
-  const clv   = d.clv || 0;
   $('recRows').innerHTML = [
     ['AI Offload %',       `<span class="rec-val" style="color:var(--accent)">${offPct}%</span>`],
     ['We Retain',          `<span class="rec-val" style="color:var(--accent)">${100-offPct}%</span>`],
     ['Suggested Max Wager',`<span class="rec-val">${money(d.suggestedMaxWager||wager)}</span>`],
-    ['Kelly Fraction',     `<span class="rec-val">${(kelly*100).toFixed(2)}%</span>`],
-    ['Closing Line Value', `<span class="rec-val" style="color:${clv>=0?'var(--green)':'var(--danger)'}">${(clv>=0?'+':'')+(clv*100).toFixed(2)}%</span>`],
-    ['Optimal Offload',    `<span class="rec-val">${d.optimalOffload||offPct}%</span>`],
     ['Risk Score',         `<span class="rec-val" style="color:${riskColor}">${d.riskScore}/100 — ${esc(d.riskLabel)}</span>`],
   ].map(([l,v]) => `<div class="rec-row"><span class="rec-label">${l}</span>${v}</div>`).join('');
 
-  // ── Context ──
-  const ctx = [
-    ['Recent Form',         d.recentForm],
-    ['Line Movement',       d.lineMovement],
-    ['Sharp Action',        d.sharpAction],
-    ['Public vs Sharp',     d.publicVsSharp],
-    ['Injuries / News',     d.weatherInjuries],
-    ['Key Risks',           d.keyRisks],
-  ];
-  $('ctxRows').innerHTML = ctx.filter(([,v])=>v).map(([l,v]) =>
-    `<div class="ctx-item"><div class="ctx-label">${l}</div><div class="ctx-val">${esc(v)}</div></div>`
-  ).join('');
+  // ── Context (hide section if no data) ──
+  $('ctxRows').innerHTML = '';
+  if ($('ctxSection')) $('ctxSection').style.display = 'none';
 }
 
 function diffBadge(price, ref) {
