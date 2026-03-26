@@ -225,9 +225,12 @@ module.exports = async (req, res) => {
 
   } catch (err) {
     console.error('[analyse] Error:', err.status, err.message);
-    if (err.status === 401) return res.status(500).json({ success: false, error: 'Invalid Anthropic API key.' });
+    const msg = err.message || '';
+    if (err.status === 401 || msg.includes('apiKey') || msg.includes('authToken') || msg.includes('authentication')) {
+      return res.status(500).json({ success: false, error: 'ANTHROPIC_API_KEY is missing or invalid. Add it in Vercel Project Settings > Environment Variables.' });
+    }
     if (err.status === 429) return res.status(429).json({ success: false, error: 'Rate limit reached. Please wait a moment.' });
     if (err.status === 529) return res.status(503).json({ success: false, error: 'Anthropic API is overloaded. Please try again in a moment.' });
-    return res.status(500).json({ success: false, error: err.message || 'Internal server error.' });
+    return res.status(500).json({ success: false, error: msg || 'Internal server error.' });
   }
 };
