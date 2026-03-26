@@ -65,11 +65,74 @@ function detectLeague(path) {
  * Returns null if what's left is just a league/sport name (≤ 2 words).
  */
 function extractFixtureSlug(segment) {
-  // Remove trailing numeric ID (8+ digit numbers at the end, possibly preceded by hyphen)
   const cleaned = segment.replace(/-?\d{8,}$/, '').replace(/-$/, '').trim();
   const words = cleaned.split('-').filter(Boolean);
-  // If 3+ words remain it likely contains team names
   return words.length >= 3 ? words.join(' ') : null;
+}
+
+/**
+ * Try to fetch the sportsbook page directly and extract odds from the HTML/JSON.
+ * Many SPAs embed initial state in <script> tags or return JSON from API endpoints.
+ * Returns parsed fixture data or null if scraping fails.
+ */
+async function scrapePageOdds(url, rawUrl) {
+  try {
+    // 1. Try fetching the page HTML
+    const pageRes = await fetch(rawUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/json,*/*',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!pageRes.ok) return null;
+    const html = await pageRes.text();
+
+    // Trim to a reasonable size to avoid huge token counts
+    const trimmed = html.slice(0, 40000);
+
+    // 2. Ask Claude to extract the odds from the raw HTML - no web search needed
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: `Extract betting fixture and odds from this sportsbook page HTML. The page is from: ${rawUrl}
+
+Look for team names, match status (pre-match or live), and all available markets/odds in the HTML content below.
+
+HTML:
+${trimmed}
+
+Return ONLY valid JSON - no markdown:
+{
+  "fixture": "Team A vs Team B",
+  "sport": "string",
+  "competition": "string",
+  "isLive": true | false,
+  "kickoff": "date/time or null",
+  "markets": [
+    { "marketName": "1x2", "selection": "Team A", "odds": 1.65 },
+    { "marketName": "1x2", "selection": "Draw", "odds": 3.70 },
+    { "marketName": "1x2", "selection": "Team B", "odds": 4.70 }
+  ]
+}
+
+Include ALL markets and selections you can find. If no odds are found in the HTML (JS-rendered page), return null.`,
+      }],
+    });
+
+    const raw = extractText(response.content);
+    if (raw.trim() === 'null' || !raw.includes('{')) return null;
+    const data = parseJSON(raw);
+    if (!data?.fixture || !data?.markets?.length) return null;
+    return data;
+
+  } catch (err) {
+    console.log('[parse-fixture] Direct scrape failed:', err.message);
+    return null;
+  }
 }
 
 module.exports = async (req, res) => {
@@ -90,6 +153,25 @@ module.exports = async (req, res) => {
   const lastSegment  = pathSegments[pathSegments.length - 1] || '';
   const fixtureSlug  = extractFixtureSlug(lastSegment);
   const league       = detectLeague(parsedUrl.pathname);
+
+  // ── Try direct page scrape first (works for live matches & pre-match) ────────
+  console.log('[parse-fixture] Attempting direct page scrape...');
+  const scraped = await scrapePageOdds(parsedUrl, url);
+  if (scraped) {
+    console.log('[parse-fixture] Direct scrape succeeded:', scraped.fixture, scraped.isLive ? '(LIVE)' : '(pre-match)');
+    return res.json({
+      success: true,
+      mode: 'single',
+      data: {
+        sport: scraped.sport,
+        competition: scraped.competition,
+        fixture: scraped.fixture,
+        kickoff: scraped.isLive ? 'LIVE' : (scraped.kickoff || null),
+        markets: scraped.markets,
+      },
+    });
+  }
+  console.log('[parse-fixture] Direct scrape failed (JS-rendered), falling back to web search...');
 
   // ── Mode A: URL contains team names ────────────────────────────────────────
   // e.g. /nba/boston-celtics-oklahoma-city-thunder-2648126436443041833
