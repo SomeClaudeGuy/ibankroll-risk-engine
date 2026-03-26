@@ -16,7 +16,7 @@ function parseJSON(raw) {
   return JSON.parse(match[0]);
 }
 
-async function withRetry(fn, retries = 2, delayMs = 3000) {
+async function withRetry(fn, retries = 3, delayMs = 5000) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();
@@ -33,30 +33,37 @@ async function withRetry(fn, retries = 2, delayMs = 3000) {
   }
 }
 
-async function callClaude(prompt, maxTokens, model = 'fast') {
-  const modelId = model === 'fast' ? 'claude-haiku-4-5' : 'claude-sonnet-4-6';
+async function callClaude(prompt, maxTokens, useSearch = false) {
   const params = {
-    model: modelId,
+    model: 'claude-sonnet-4-6',
     max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   };
+  if (useSearch) {
+    params.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+  }
   const response = await withRetry(() => client.messages.create(params));
   const raw = extractText(response.content);
   try {
     return parseJSON(raw);
   } catch (e) {
-    console.error('[analyse] JSON parse failed on', modelId, '- Raw:', raw.slice(0, 300));
+    console.error('[analyse] JSON parse failed. Raw:', raw.slice(0, 300));
     throw new Error('Model returned invalid JSON. Please try again.');
   }
 }
 
-// ── Phase 1: Market Intelligence (model knowledge - no web search for speed) ──
+// ── Phase 1: Market Intelligence (web search for live odds + form) ────────────
 async function phase1(matchup, selection, oddsNum) {
-  const prompt = `Sports odds analyst. Assess this bet using your knowledge. Be concise and fast.
+  const prompt = `You are a sharp sports trader. Search for current odds on this fixture across major bookmakers, then assess fair value and market context.
 
-Fixture: ${matchup} | Selection: ${selection} | Our price: ${oddsNum}
+Fixture: ${matchup}
+Selection: ${selection}
+Our price: ${oddsNum} (decimal)
 
-Return ONLY this JSON:
+Search for: "${matchup} odds" to get current prices from Pinnacle, Bet365, DraftKings, FanDuel, PointsBet.
+Also search for: "${matchup} injuries team news" for form and lineup intel.
+
+Return ONLY this JSON (no markdown):
 {
   "detectedSport": "string",
   "detectedMarket": "string",
@@ -72,14 +79,14 @@ Return ONLY this JSON:
     {"book": "PointsBet", "price": number}
   ],
   "sharpOrRec": "sharp" | "recreational" | "unknown",
-  "publicVsSharp": "one sentence on public vs sharp split",
-  "recentForm": "one sentence on recent form and H2H",
-  "lineMovement": "one sentence on line movement",
+  "publicVsSharp": "one sentence",
+  "recentForm": "two sentences on recent form and H2H",
+  "lineMovement": "one sentence on opening line vs current",
   "reverseLineMovement": true | false,
-  "sharpAction": "one sentence on sharp money",
-  "weatherInjuries": "one sentence on injuries or conditions, none if N/A"
+  "sharpAction": "one sentence on sharp money signals",
+  "weatherInjuries": "one sentence on injuries or conditions"
 }`;
-  return callClaude(prompt, 600, false);
+  return callClaude(prompt, 700, true);
 }
 
 // ── Phase 2: Risk & Offload ──────────────────────────────────────────────────
@@ -130,7 +137,7 @@ Return ONLY this JSON:
   "keyRisks": "2-3 specific risks to our book on this bet",
   "offloadReasoning": "2 sentences explaining exactly why this offload % was chosen"
 }`;
-  return callClaude(prompt, 500, 'fast');
+  return callClaude(prompt, 500, false);
 }
 
 // ── Phase 3: Verdict ──────────────────────────────────────────────────────────
@@ -168,7 +175,7 @@ Return ONLY this JSON:
     {"label": "Worst case", "pnl": ${(-grossExp).toFixed(2)}, "desc": "Client wins - we pay $${grossExp.toFixed(0)}, iBankroll pays $${ibPayout.toFixed(0)}."}
   ]
 }`;
-  return callClaude(prompt, 700, 'smart');
+  return callClaude(prompt, 700, false);
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────

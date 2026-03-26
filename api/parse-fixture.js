@@ -15,7 +15,7 @@ function parseJSON(raw) {
   return JSON.parse(match[0]);
 }
 
-async function withRetry(fn, retries = 2, delayMs = 3000) {
+async function withRetry(fn, retries = 3, delayMs = 5000) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();

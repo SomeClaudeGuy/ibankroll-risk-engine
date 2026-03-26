@@ -711,6 +711,7 @@ async function runAnalysis() {
     setTimeout(() => $('output').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
     // ── Phase 2: Risk & Offload ────────────────────────────────────
+    await new Promise(r => setTimeout(r, 800)); // brief gap to avoid rate limits
     activateStep(2);
     const p2 = await callPhase(2, { p1 });
     activateStep(3);
@@ -720,6 +721,7 @@ async function runAnalysis() {
     renderPhase2(p2, p1, odds, wager, lossbackPct);
 
     // ── Phase 3: Verdict ───────────────────────────────────────────
+    await new Promise(r => setTimeout(r, 800)); // brief gap to avoid rate limits
     activateStep(4);
     const p3 = await callPhase(3, { p1, p2 });
     completeSteps(4);
