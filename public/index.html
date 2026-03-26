@@ -804,9 +804,10 @@ function renderOutput(d) {
     pnlRows.push(['Lossback cost (if client loses)', `<span class="pnl-val red">−${money(lossback)}</span>`]);
   }
   pnlRows.push(
-    ['Profit if client LOSES',        `<span class="pnl-val grn">${money(netLose,true)}</span>`],
-    ['Gross exposure if client WINS', `<span class="pnl-val red">${money(grossExp,true)}</span>`],
-    ['Net P&L if client WINS',        `<span class="pnl-val red">${money(netWin,true)}</span>`],
+    ['Profit if client LOSES',                    `<span class="pnl-val grn">${money(netLose,true)}</span>`],
+    ['Our payout share if client WINS',           `<span class="pnl-val red">−${money(grossExp)}</span>`],
+    ['&#8627;&nbsp;Less: their stake we hold',    `<span class="pnl-val grn">+${money(retained)}</span>`],
+    ['Net cash out if client WINS',               `<span class="pnl-val red">${money(netWin,true)}</span>`],
     ['Expected value (EV)',           `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
     ['Client implied win%',           `<span class="pnl-val">${pct(1/odds,1)}</span>`],
     ['Break-even win% (incl. lossback)', `<span class="pnl-val" style="color:${bepColor}">${pct(ibBreakEven,1)} <span style="font-size:10px;opacity:.7">${aiWinProb<=ibBreakEven?'✓ EV+':'✗ EV−'}</span></span>`],
