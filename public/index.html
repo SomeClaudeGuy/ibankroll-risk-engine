@@ -398,7 +398,7 @@ main { padding: 32px 0 80px; }
         <div class="kn-sub" id="knRetainedSub"></div>
       </div>
       <div class="kn-card">
-        <div class="kn-label">Hedged to OTC</div>
+        <div class="kn-label">Hedged with iBankroll</div>
         <div class="kn-value acc" id="knOffloaded">—</div>
         <div class="kn-sub" id="knOffloadedSub"></div>
       </div>
@@ -408,7 +408,7 @@ main { padding: 32px 0 80px; }
         <div class="kn-sub" id="knWinSub"></div>
       </div>
       <div class="kn-card">
-        <div class="kn-label">Exposure if Bet Wins ✗</div>
+        <div class="kn-label">Our Risk if Bet Wins ✗</div>
         <div class="kn-value neg" id="knLose">—</div>
         <div class="kn-sub" id="knLoseSub"></div>
       </div>
@@ -755,18 +755,21 @@ function renderOutput(d) {
   $('riskLabel').textContent = (d.riskLabel || '').toUpperCase() + ' RISK';
 
   // ── Key Numbers ──
+  // Gross exposure = what we'd have to pay out from our side if bet wins (retained × odds)
+  // e.g. $8.5K retained × 2.14 = $18.19K — this is the "risk" figure operators use
+  const grossExposure = retained * odds;
   $('knRetained').textContent    = money(retained);
-  $('knRetainedSub').textContent = `${(100-offPct).toFixed(0)}% of bet — our max payout exposure`;
+  $('knRetainedSub').textContent = `${(100-offPct).toFixed(0)}% kept — our profit if bet loses`;
   $('knOffloaded').textContent   = money(offloaded);
-  $('knOffloadedSub').textContent= `${offPct}% passed to iBankroll — their liability`;
-  // Card 3: our UPSIDE — profit when bet loses (we keep our retained stake)
+  $('knOffloadedSub').textContent= `${offPct}% hedged — iBankroll pays us ${dp(odds)}× if wins`;
+  // Card 3: our UPSIDE — profit when bet loses (we keep retained stake, iBankroll keeps theirs)
   $('knWin').textContent         = money(netLose, true);
   $('knWin').className           = 'kn-value pos';
-  $('knWinSub').textContent      = 'We keep our stake — iBankroll keeps theirs';
-  // Card 4: our DOWNSIDE — payout owed if selection wins
-  $('knLose').textContent        = money(netWin, true);
+  $('knWinSub').textContent      = `Client loses — we keep $${Math.round(retained).toLocaleString()}, iBankroll keeps $${Math.round(offloaded).toLocaleString()}`;
+  // Card 4: gross payout exposure if bet wins (retained × odds = total payout our side must fund)
+  $('knLose').textContent        = money(grossExposure, true);
   $('knLose').className          = 'kn-value neg';
-  $('knLoseSub').textContent     = `We pay $${Math.round(retained*(odds-1)).toLocaleString()} — iBankroll pays $${Math.round(offloaded*(odds-1)).toLocaleString()}`;
+  $('knLoseSub').textContent     = `Net P&L: ${money(netWin,true)} after $${Math.round(retained).toLocaleString()} stake held`;
 
   // ── Odds Table ──
   const mktOdds = d.marketOdds || [];
@@ -788,8 +791,9 @@ function renderOutput(d) {
   // Green if AI's true win prob is below implied prob (we have edge), red if above
   const bepColor = aiWinProb <= ibBreakEven ? 'var(--green)' : 'var(--danger)';
   $('pnlRows').innerHTML = [
-    ['Profit if bet LOSES (we win)', `<span class="pnl-val grn">${money(netLose,true)}</span>`],
-    ['Loss if bet WINS (we pay)',    `<span class="pnl-val red">${money(netWin,true)}</span>`],
+    ['Profit if client LOSES',       `<span class="pnl-val grn">${money(netLose,true)}</span>`],
+    ['Gross exposure if client WINS',`<span class="pnl-val red">${money(grossExposure,true)}</span>`],
+    ['Net P&L if client WINS',       `<span class="pnl-val red">${money(netWin,true)}</span>`],
     ['Expected value (our share)',   `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
     ['Client implied win%',          `<span class="pnl-val">${pct(1/odds,1)}</span>`],
     ['AI fair win probability',      `<span class="pnl-val" style="color:${bepColor}">${pct(aiWinProb,1)} <span style="font-size:10px;opacity:.7">${aiWinProb<=ibBreakEven?'✓ EV+':'✗ EV−'}</span></span>`],
