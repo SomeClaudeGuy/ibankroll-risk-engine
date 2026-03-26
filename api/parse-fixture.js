@@ -63,12 +63,12 @@ function detectLeague(path) {
 /**
  * Given the last URL path segment (e.g. "boston-celtics-oklahoma-city-thunder-2648126436443041833"),
  * strip trailing pure-numeric IDs and return a human-readable slug.
- * Returns null if what's left is just a league/sport name (≤ 2 words).
+ * Returns null if what's left is a single word (just a league/sport name).
  */
 function extractFixtureSlug(segment) {
   const cleaned = segment.replace(/-?\d{8,}$/, '').replace(/-$/, '').trim();
   const words = cleaned.split('-').filter(Boolean);
-  return words.length >= 3 ? words.join(' ') : null;
+  return words.length >= 2 ? words.join(' ') : null;
 }
 
 /**
