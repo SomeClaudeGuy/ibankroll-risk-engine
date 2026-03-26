@@ -2,6 +2,7 @@
 
 const Anthropic = require('@anthropic-ai/sdk');
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const { getFeedEvents, findEventByMatchup, getPlatformOdds } = require('./feed');
 
 function extractText(content) {
   if (!Array.isArray(content)) return String(content);
@@ -57,6 +58,35 @@ module.exports = async (req, res) => {
     const impliedProb = 1 / oddsNum;
     console.log(`[analyse] ${matchup} / ${selection} @ ${oddsNum} / wager $${wagerNum}`);
 
+    // ── Try to get platform odds from Betby feed ───────────────────────────────
+    let platformOddsSection = '';
+    try {
+      if (process.env.BETBY_BRAND_ID) {
+        const events = await getFeedEvents();
+        const ev = findEventByMatchup(events, matchup);
+        if (ev) {
+          const platform = getPlatformOdds(ev, selection);
+          if (platform) {
+            const delta = platform.odds != null ? (oddsNum - platform.odds).toFixed(3) : null;
+            if (platform.odds != null) {
+              platformOddsSection = `
+PLATFORM ODDS (live from Betby feed):
+  Our price for "${selection}": ${oddsNum}
+  Platform price for same selection: ${platform.odds} (${platform.market})
+  Delta (our price vs platform): ${delta > 0 ? '+' : ''}${delta} ${parseFloat(delta) > 0 ? '(we priced higher - client got value)' : parseFloat(delta) < 0 ? '(we priced lower - we have edge)' : '(matching price)'}
+  Home: ${ev.homeTeam.name} | Away: ${ev.awayTeam.name}`;
+              console.log(`[analyse] Platform odds found: ${platform.odds} for ${selection} (our price: ${oddsNum})`);
+            } else if (platform.all) {
+              const lines = platform.all.map(o => `  ${o.name}: ${o.odds}`).join('\n');
+              platformOddsSection = `\nPLATFORM ODDS (live from Betby feed - ${platform.market}):\n${lines}`;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.log('[analyse] Feed lookup failed (non-fatal):', err.message);
+    }
+
     const prompt = `You are a senior sports trading analyst AND bookmaker risk manager with 15+ years of experience. Analyse this bet comprehensively.
 
 FIXTURE:   ${matchup}
@@ -64,7 +94,7 @@ SELECTION: ${selection}
 OUR PRICE: ${oddsNum} decimal (implied ${(impliedProb * 100).toFixed(1)}% win probability)
 STAKE:     $${wagerNum.toLocaleString('en-US')}
 LOSSBACK:  ${lossbackPct > 0 ? `${lossbackPct}% = $${lossbackAmt.toFixed(2)} refunded to client if they LOSE` : 'None'}
-
+${platformOddsSection}
 CONTEXT: We (the bookmaker) accepted this bet from a client. We can offload a portion to our OTC liability partner iBankroll at the SAME odds. iBankroll covers their share if the client wins; we cover ours. No margin - pure liability split.
 
 YOUR JOB - analyse in full:

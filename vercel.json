@@ -1,10 +1,7 @@
 {
   "functions": {
-    "api/analyse.js": {
-      "maxDuration": 60
-    },
-    "api/parse-fixture.js": {
-      "maxDuration": 60
-    }
+    "api/analyse.js":       { "maxDuration": 60 },
+    "api/parse-fixture.js": { "maxDuration": 60 },
+    "api/feed.js":          { "maxDuration": 15 }
   }
 }

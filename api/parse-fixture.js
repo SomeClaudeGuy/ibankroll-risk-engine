@@ -1,5 +1,6 @@
 'use strict';
 
+const { getFeedEvents, findEventBySlug, eventToFixtureResponse } = require('./feed');
 const Anthropic = require('@anthropic-ai/sdk');
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -159,6 +160,21 @@ module.exports = async (req, res) => {
   // e.g. /nba/boston-celtics-oklahoma-city-thunder-2648126436443041833
   if (fixtureSlug) {
     console.log(`[parse-fixture] Mode A - fixture slug: "${fixtureSlug}"`);
+
+    // Try Betby feed first — instant, no AI call needed
+    try {
+      if (process.env.BETBY_BRAND_ID) {
+        const events = await getFeedEvents();
+        const ev = findEventBySlug(events, fixtureSlug);
+        if (ev) {
+          console.log(`[parse-fixture] Feed hit: ${ev.homeTeam.name} vs ${ev.awayTeam.name}`);
+          return res.json({ success: true, mode: 'single', data: eventToFixtureResponse(ev) });
+        }
+        console.log('[parse-fixture] Feed miss - falling through to web search');
+      }
+    } catch (err) {
+      console.log('[parse-fixture] Feed lookup failed (non-fatal):', err.message);
+    }
 
     const prompt = `You are a sports data specialist. Search for the current betting odds for this fixture.
 
