@@ -842,7 +842,7 @@ function renderOutput(d) {
   const clv   = d.clv || 0;
   $('recRows').innerHTML = [
     ['AI Offload %',       `<span class="rec-val" style="color:var(--accent)">${offPct}%</span>`],
-    ['AI Margin %',        `<span class="rec-val" style="color:var(--accent)">${marPct}%</span>`],
+    ['We Retain',          `<span class="rec-val" style="color:var(--accent)">${100-offPct}%</span>`],
     ['Suggested Max Wager',`<span class="rec-val">${money(d.suggestedMaxWager||wager)}</span>`],
     ['Kelly Fraction',     `<span class="rec-val">${(kelly*100).toFixed(2)}%</span>`],
     ['Closing Line Value', `<span class="rec-val" style="color:${clv>=0?'var(--green)':'var(--danger)'}">${(clv>=0?'+':'')+(clv*100).toFixed(2)}%</span>`],
