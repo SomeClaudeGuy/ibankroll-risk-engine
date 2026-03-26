@@ -746,12 +746,20 @@ function calcPnl(odds, wager, lossbackPct, offPct, p2 = {}) {
 
 // ── Phase 1 render: market intelligence ──────────────────────────────────────
 function renderPhase1(p1, odds, wager, lossbackPct) {
-  // Odds table
+  // Odds table - include fair odds and opening line
   const mktOdds = p1.marketOdds || [];
   const bestMkt = mktOdds.reduce((m, o) => Math.max(m, o.price), 0);
   let rows = `<tr class="player-row">
     <td><span class="book-name">Your Price</span></td>
     <td><span class="book-price">${dp(odds)}</span>${diffBadge(odds, bestMkt)}</td>
+  </tr>`;
+  if (p1.fairOdds) rows += `<tr>
+    <td><span class="book-name" style="color:var(--accent)">AI Fair Value</span></td>
+    <td><span class="book-price" style="color:var(--accent)">${dp(p1.fairOdds)}</span>${diffBadge(p1.fairOdds, odds)}</td>
+  </tr>`;
+  if (p1.openingLine) rows += `<tr>
+    <td><span class="book-name" style="color:var(--muted2)">Opening Line</span></td>
+    <td><span class="book-price" style="color:var(--muted2)">${dp(p1.openingLine)}</span>${diffBadge(p1.openingLine, odds)}</td>
   </tr>`;
   mktOdds.forEach(o => {
     rows += `<tr>
@@ -761,16 +769,21 @@ function renderPhase1(p1, odds, wager, lossbackPct) {
   });
   $('oddsTbody').innerHTML = rows;
 
-  // Context rows
+  // Context rows - all signals
+  const rlmBadge = p1.reverseLineMovement
+    ? `<span style="color:var(--warn);font-weight:700"> REVERSE LINE MOVEMENT</span>` : '';
   const ctx = [
-    ['Recent Form',    p1.recentForm],
-    ['Line Movement',  p1.lineMovement],
-    ['Sharp Action',   p1.sharpAction],
-    ['Injuries/News',  p1.weatherInjuries],
+    ['Bettor Profile',  p1.sharpOrRec ? p1.sharpOrRec.toUpperCase() + (p1.sharpOrRec === 'sharp' ? ' - offload more' : p1.sharpOrRec === 'recreational' ? ' - soft money' : '') : null],
+    ['Public vs Sharp', p1.publicVsSharp],
+    ['Line Movement',   p1.lineMovement ? p1.lineMovement + (rlmBadge || '') : null],
+    ['Sharp Action',    p1.sharpAction],
+    ['Recent Form',     p1.recentForm],
+    ['Injuries/News',   p1.weatherInjuries],
+    ['Edge vs Market',  p1.edgeVsMarket != null ? `${(p1.edgeVsMarket >= 0 ? '+' : '')}${(p1.edgeVsMarket * 100).toFixed(2)}% ${p1.edgeVsMarket > 0 ? '(we have edge)' : '(client has edge)'}` : null],
   ];
   if ($('ctxSection')) $('ctxSection').style.display = '';
-  $('ctxRows').innerHTML = ctx.filter(([,v]) => v && v !== 'N/A').map(([l,v]) =>
-    `<div class="ctx-item"><div class="ctx-label">${l}</div><div class="ctx-val">${esc(v)}</div></div>`
+  $('ctxRows').innerHTML = ctx.filter(([,v]) => v && v !== 'N/A' && v !== 'none').map(([l,v]) =>
+    `<div class="ctx-item"><div class="ctx-label">${l}</div><div class="ctx-val">${l === 'Line Movement' ? v : esc(v)}</div></div>`
   ).join('');
 
   // Placeholder verdict while phases 2+3 load
@@ -839,11 +852,14 @@ function renderPhase2(p2, p1, odds, wager, lossbackPct) {
   $('pnlRows').innerHTML = pnlRows.map(([l,v]) => `<div class="pnl-row"><span class="pnl-label">${l}</span>${v}</div>`).join('');
 
   // Recommendation panel
+  const clv = p2.clv || 0;
+  const clvColor = clv >= 0 ? 'var(--green)' : 'var(--danger)';
   $('recRows').innerHTML = [
     ['AI Offload %',        `<span class="rec-val" style="color:var(--accent)">${offPct}%</span>`],
     ['We Retain',           `<span class="rec-val" style="color:var(--accent)">${100-offPct}%</span>`],
     ['Suggested Max Wager', `<span class="rec-val">${money(p2.suggestedMaxWager || wager)}</span>`],
     ['Kelly Fraction',      `<span class="rec-val">${((p2.kellyFraction||0)*100).toFixed(2)}%</span>`],
+    ['Closing Line Value',  `<span class="rec-val" style="color:${clvColor}">${clv >= 0 ? '+' : ''}${(clv*100).toFixed(2)}%</span>`],
     ['Risk Score',          `<span class="rec-val" style="color:${riskColor}">${p2.riskScore}/100 - ${esc(p2.riskLabel)}</span>`],
   ].map(([l,v]) => `<div class="rec-row"><span class="rec-label">${l}</span>${v}</div>`).join('');
 

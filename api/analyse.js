@@ -35,7 +35,9 @@ Fixture:   ${matchup}
 Selection: ${selection}
 Our price: ${oddsNum} (decimal)
 
-Search for: "${matchup} ${selection} odds" to find current prices on Pinnacle, Bet365, DraftKings, FanDuel, PointsBet and any other major books. Also search for recent form, injuries and team news.
+Search for TWO things:
+1. "${matchup} ${selection} odds" - find current prices on Pinnacle, Bet365, DraftKings, FanDuel, PointsBet. Also find the opening line.
+2. "${matchup} injuries news form" - recent team form, H2H, injuries, lineup news.
 
 Return ONLY this JSON (no markdown, no text outside JSON):
 {
@@ -44,6 +46,7 @@ Return ONLY this JSON (no markdown, no text outside JSON):
   "fairOdds": number,
   "fairWinProb": number,
   "edgeVsMarket": number,
+  "openingLine": number,
   "marketOdds": [
     {"book": "Pinnacle",   "price": number},
     {"book": "Bet365",     "price": number},
@@ -52,10 +55,12 @@ Return ONLY this JSON (no markdown, no text outside JSON):
     {"book": "PointsBet",  "price": number}
   ],
   "sharpOrRec": "sharp" | "recreational" | "unknown",
+  "publicVsSharp": "e.g. 68% public on selection but line moved against - reverse line movement signal",
   "recentForm": "2 sentences on recent form and H2H",
-  "lineMovement": "1 sentence on line movement since open",
-  "sharpAction": "1 sentence on sharp vs public split",
-  "weatherInjuries": "1 sentence on injuries or conditions (none if N/A)"
+  "lineMovement": "1 sentence on line movement since open (opened X now Y)",
+  "reverseLineMovement": true | false,
+  "sharpAction": "1 sentence on where sharp/syndicate money is pointing",
+  "weatherInjuries": "1 sentence on injuries, lineup news or conditions (none if N/A)"
 }`;
   return callClaude(prompt, 800, true);
 }
@@ -81,7 +86,9 @@ OFFLOAD SCORING:
 Stake $${wagerNum.toLocaleString('en-US')}: ${wagerNum < 5000 ? '0-15% base offload' : wagerNum < 15000 ? '20-40% base offload' : wagerNum < 30000 ? '40-60% base offload' : '60-80% base offload'}
 Bettor sharp: ${p1.sharpOrRec === 'sharp' ? '+15%' : p1.sharpOrRec === 'recreational' ? '-10%' : '+5%'}
 Coin-flip match (45-55% prob): ${p1.fairWinProb >= 0.45 && p1.fairWinProb <= 0.55 ? '+10%' : '0%'}
-Client has edge on us (fairWinProb > 1/clientOdds): ${p1.fairWinProb > 1/oddsNum ? 'YES → +15%' : 'NO → 0%'}
+Client has edge on us (fairWinProb > 1/clientOdds): ${p1.fairWinProb > 1/oddsNum ? 'YES +15%' : 'NO 0%'}
+Reverse line movement detected: ${p1.reverseLineMovement ? 'YES - sharp signal, +15%' : 'NO'}
+Public vs sharp split: ${p1.publicVsSharp || 'unknown'}
 
 FORMULAS (use recommended offload %):
 retained   = ${wagerNum} × (1 − offload/100)
