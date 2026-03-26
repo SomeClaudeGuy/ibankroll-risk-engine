@@ -155,25 +155,6 @@ module.exports = async (req, res) => {
   const fixtureSlug  = extractFixtureSlug(lastSegment);
   const league       = detectLeague(parsedUrl.pathname);
 
-  // ── Try direct page scrape first (works for live matches & pre-match) ────────
-  console.log('[parse-fixture] Attempting direct page scrape...');
-  const scraped = await scrapePageOdds(parsedUrl, url);
-  if (scraped) {
-    console.log('[parse-fixture] Direct scrape succeeded:', scraped.fixture, scraped.isLive ? '(LIVE)' : '(pre-match)');
-    return res.json({
-      success: true,
-      mode: 'single',
-      data: {
-        sport: scraped.sport,
-        competition: scraped.competition,
-        fixture: scraped.fixture,
-        kickoff: scraped.isLive ? 'LIVE' : (scraped.kickoff || null),
-        markets: scraped.markets,
-      },
-    });
-  }
-  console.log('[parse-fixture] Direct scrape failed (JS-rendered), falling back to web search...');
-
   // ── Mode A: URL contains team names ────────────────────────────────────────
   // e.g. /nba/boston-celtics-oklahoma-city-thunder-2648126436443041833
   if (fixtureSlug) {
