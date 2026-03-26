@@ -393,22 +393,22 @@ main { padding: 32px 0 80px; }
     <!-- Key Numbers -->
     <div class="key-numbers">
       <div class="kn-card">
-        <div class="kn-label">Your Retained Stake</div>
+        <div class="kn-label">Retained on Our Book</div>
         <div class="kn-value" id="knRetained">—</div>
         <div class="kn-sub" id="knRetainedSub"></div>
       </div>
       <div class="kn-card">
-        <div class="kn-label">Offloaded to iBankroll</div>
+        <div class="kn-label">Hedged to OTC</div>
         <div class="kn-value acc" id="knOffloaded">—</div>
         <div class="kn-sub" id="knOffloadedSub"></div>
       </div>
       <div class="kn-card">
-        <div class="kn-label">Net Profit if Win</div>
+        <div class="kn-label">Profit if Bet Loses ✓</div>
         <div class="kn-value pos" id="knWin">—</div>
         <div class="kn-sub" id="knWinSub"></div>
       </div>
       <div class="kn-card">
-        <div class="kn-label">Net Loss if Lose</div>
+        <div class="kn-label">Exposure if Bet Wins ✗</div>
         <div class="kn-value neg" id="knLose">—</div>
         <div class="kn-sub" id="knLoseSub"></div>
       </div>
@@ -721,13 +721,22 @@ function renderOutput(d) {
   const offPct = d.recommendedOffload || 50;
   const marPct = d.recommendedMargin  || 5;
 
-  // Use AI-calculated values or fall back to computing them
-  const retained  = d.retained  ?? wager * (1 - offPct / 100);
-  const offloaded = d.offloaded ?? wager * (offPct / 100);
-  const ibOdds    = d.ibOdds    ?? odds * (1 - marPct / 100);
-  const netWin    = d.netWin    ?? (offloaded * (ibOdds - 1) - wager * (odds - 1) + wager);
-  const netLose   = d.netLose   ?? retained;
-  const ev        = d.ev        ?? ((1 / odds) * netWin - (1 - 1 / odds) * retained);
+  // ── Business model: iBankroll is the bookmaker. ──────────────────────────
+  // RDT sends us total wager. We keep X% liability, pass Y% liability to OTC.
+  // OTC accepts their share at the SAME client odds.
+  // Our margin = brokerage commission on the offloaded portion (earned always).
+  const retained   = d.retained   ?? wager * (1 - offPct / 100);   // our liability share
+  const offloaded  = d.offloaded  ?? wager * (offPct / 100);        // OTC's liability share
+  const commission = offloaded * (marPct / 100);                     // our brokerage fee (always earned)
+  const ibOdds     = d.ibOdds     ?? odds;                           // OTC gets same odds (no spread)
+  // If bet LOSES → WE WIN as bookmaker: keep retained stake + earn commission
+  const netLose    = d.netLose    ?? (retained + commission);
+  // If bet WINS → WE LOSE as bookmaker: pay our share of the payout, keep commission
+  const netWin     = d.netWin     ?? (commission - retained * (odds - 1));
+  // EV at implied probability: always equals commission (retained position is EV-neutral at fair odds)
+  const ev         = d.ev         ?? ((1 - 1/odds) * netLose + (1/odds) * netWin);
+  // Break-even: max P(selection wins) at which we're still EV-positive
+  const ibBreakEven = (retained + commission) / (retained * odds);
 
   // ── Verdict ──
   const cls = { TAKE:'take', LEAN_TAKE:'lean-take', LEAN_PASS:'lean-pass', PASS:'pass' }[d.verdict] || 'lean-pass';
@@ -748,15 +757,18 @@ function renderOutput(d) {
   $('riskLabel').textContent = (d.riskLabel || '').toUpperCase() + ' RISK';
 
   // ── Key Numbers ──
-  $('knRetained').textContent   = money(retained);
-  $('knRetainedSub').textContent = `${(100 - offPct).toFixed(0)}% retained on our book`;
-  $('knOffloaded').textContent  = money(offloaded);
-  $('knOffloadedSub').textContent = `${offPct}% laid off @ ${dp(ibOdds)} odds`;
-  $('knWin').textContent        = money(netWin, true);
-  $('knWinSub').textContent     = 'Net after iBankroll payout';
-  $('knLose').textContent       = '-' + money(netLose);
-  $('knLoseSub').textContent    = 'Max retained exposure';
-  $('knWin').className  = 'kn-value ' + (netWin >= 0 ? 'pos' : 'neg');
+  $('knRetained').textContent    = money(retained);
+  $('knRetainedSub').textContent = `${(100-offPct).toFixed(0)}% held — our liability if win`;
+  $('knOffloaded').textContent   = money(offloaded);
+  $('knOffloadedSub').textContent= `${offPct}% of liability — iBankroll's share`;
+  // Card 3: our UPSIDE — profit when bet loses (selection loses, we win as bookmaker)
+  $('knWin').textContent         = money(netLose, true);
+  $('knWin').className           = 'kn-value pos';
+  $('knWinSub').textContent      = 'Retain stake, OTC keeps offloaded';
+  // Card 4: our DOWNSIDE — net loss when bet wins (selection wins, we pay out)
+  $('knLose').textContent        = money(netWin, true);
+  $('knLose').className          = 'kn-value ' + (netWin >= 0 ? 'pos' : 'neg');
+  $('knLoseSub').textContent     = `Our share: $${Math.round(retained*(odds-1)).toLocaleString()} — OTC covers $${Math.round(offloaded*(odds-1)).toLocaleString()}`;
 
   // ── Odds Table ──
   const mktOdds = d.marketOdds || [];
@@ -774,15 +786,19 @@ function renderOutput(d) {
   $('oddsTbody').innerHTML = rows;
 
   // ── P&L ──
-  const edgeVsM = d.edgeVsMarket || 0;
+  const edgeVsM    = d.edgeVsMarket || 0;
+  const aiWinProb  = d.impliedProb  || (1/odds);
+  // Traffic-light: green if ai win prob < our break-even, red if it exceeds it
+  const bepColor   = aiWinProb <= ibBreakEven ? 'var(--green)' : 'var(--danger)';
   $('pnlRows').innerHTML = [
-    ['iBankroll Price',     `<span class="pnl-val acc">${dp(ibOdds)}</span>`],
-    ['Net if Win',          `<span class="pnl-val ${netWin>=0?'grn':'red'}">${money(netWin,true)}</span>`],
-    ['Net if Lose',         `<span class="pnl-val red">-${money(netLose)}</span>`],
-    ['Expected Value',      `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
-    ['Break-Even Prob',     `<span class="pnl-val">${pct(d.breakEvenProb||1/odds,2)}</span>`],
-    ['AI Fair Probability', `<span class="pnl-val acc">${pct(d.impliedProb||1/odds,2)}</span>`],
-    ['Edge vs Market',      `<span class="pnl-val ${edgeVsM>=0?'grn':'red'}">${(edgeVsM>=0?'+':'')+(edgeVsM*100).toFixed(2)}%</span>`],
+    ['Commission earned (always)',  `<span class="pnl-val grn">${money(commission,true)}</span>`],
+    ['Profit if bet LOSES',        `<span class="pnl-val grn">${money(netLose,true)}</span>`],
+    ['P&L if bet WINS',            `<span class="pnl-val ${netWin>=0?'grn':'red'}">${money(netWin,true)}</span>`],
+    ['Expected value (our side)',  `<span class="pnl-val ${ev>=0?'grn':'red'}">${money(ev,true)}</span>`],
+    ['Client implied win%',        `<span class="pnl-val">${pct(1/odds,1)}</span>`],
+    ['Our break-even win%',        `<span class="pnl-val" style="color:${bepColor}">${pct(ibBreakEven,1)} <span style="font-size:10px;opacity:.7">${aiWinProb<=ibBreakEven?'✓ EV+':'✗ EV−'}</span></span>`],
+    ['AI fair win probability',    `<span class="pnl-val acc">${pct(aiWinProb,1)}</span>`],
+    ['Edge vs market',             `<span class="pnl-val ${edgeVsM>=0?'grn':'red'}">${(edgeVsM>=0?'+':'')+(edgeVsM*100).toFixed(2)}%</span>`],
   ].map(([l,v]) => `<div class="pnl-row"><span class="pnl-label">${l}</span>${v}</div>`).join('');
 
   // ── Risk Meter ──

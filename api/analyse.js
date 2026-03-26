@@ -36,46 +36,69 @@ module.exports = async (req, res) => {
 
     const impliedProb = 1 / oddsNum;
 
-    const prompt = `You are a senior sports trading analyst at a wholesale sportsbook with 15 years of experience. A client has placed the following bet and you must produce a complete commercial risk assessment using your expert knowledge.
+    const prompt = `You are a senior bookmaker and sports trader with 15 years of wholesale OTC experience. We are a sportsbook (like Wager.com) that has received a bet from a client. We need to decide how much liability to retain on our own book and how much to pass to our OTC liability partner (iBankroll).
 
-FIXTURE:   ${matchup}
-SELECTION: ${selection}
-CLIENT ODDS (decimal): ${oddsNum}
-STAKE:     $${wagerNum.toLocaleString('en-US')}
-IMPLIED PROBABILITY: ${(impliedProb * 100).toFixed(2)}%
+━━━ BET RECEIVED FROM CLIENT ━━━
+Fixture:            ${matchup}
+Selection:          ${selection}
+Client's odds:      ${oddsNum} (decimal)
+Client's stake:     $${wagerNum.toLocaleString('en-US')}
+Client's implied P: ${(impliedProb * 100).toFixed(2)}%
+Total liability:    $${((oddsNum - 1) * wagerNum).toLocaleString('en-US', {maximumFractionDigits:2})}
 
-YOUR TASK — using your deep knowledge of this sport, competition, teams/players, and betting markets:
+━━━ HOW THE LIABILITY SPLIT WORKS ━━━
+We SPLIT the full liability with our OTC partner (iBankroll):
+  → We RETAIN a portion on our own book.
+  → We OFFLOAD the rest to OTC at THE SAME client odds.
+  → We earn a BROKERAGE COMMISSION = offloaded × margin% (earned regardless of outcome).
 
-1. IDENTIFY sport, competition, and market type from the fixture and selection.
+Outcome logic:
+  If selection LOSES → we WIN: we keep our retained stake + earn commission.
+  If selection WINS  → we LOSE: we pay out our share of the client's winnings, offset by commission.
 
-2. ASSESS the bet:
-   - Estimate what the true fair odds should be for this selection
-   - Estimate current prices at Pinnacle, Bet365, DraftKings, FanDuel, PointsBet
-   - Analyse recent form, head-to-head record, and key statistics for both sides
-   - Identify whether this looks like sharp or recreational money
-   - Note any well-known injuries, suspensions, or contextual factors
+━━━ YOUR TASKS ━━━
 
-3. DETERMINE commercial parameters:
-   OFFLOAD % — how much risk to lay off to our iBankroll wholesale partner:
-     - Sharp / large stake / high variance = offload 60–85%
-     - Soft / recreational / low variance = offload 20–50%
-   MARGIN % — our profit margin on the iBankroll wholesale price:
-     - Liquid mainstream markets (NBA ML, EPL 1X2, spreads): 3–5%
-     - Player props, correct score, parlays, niche markets: 5–10%
+1. IDENTIFY: sport, competition, market type.
 
-4. CALCULATE using your chosen offload % and margin %:
-   ibOdds   = ${oddsNum} × (1 − margin/100)
-   retained = ${wagerNum} × (1 − offload/100)
-   offloaded= ${wagerNum} × (offload/100)
-   netWin   = offloaded × (ibOdds − 1) − ${wagerNum} × (${oddsNum} − 1) + ${wagerNum}
-   netLose  = retained
-   ev       = ${impliedProb.toFixed(6)} × netWin − ${(1 - impliedProb).toFixed(6)} × retained
+2. ASSESS THE SELECTION using your expert knowledge:
+   - What is the true fair probability of this selection winning?
+   - What do major books price this at? (Pinnacle, Bet365, DraftKings, FanDuel, PointsBet)
+   - Recent form, H2H record, key matchup factors
+   - Is this sharp money or recreational? Would a sharp bettor back this?
 
-5. WRITE aiAnalysis as exactly 4 paragraphs (double newline between each):
-   § 1 — Market overview: where do these odds sit vs the consensus? Is the client getting value or giving it away?
-   § 2 — Form & statistics: what do the numbers say? Recent results, H2H, home/away, motivation.
-   § 3 — Sharp money & line context: does this look like a sharp play? Where would you expect the line to be and why?
-   § 4 — Commercial verdict: how should we position this on our book, what margin is justified, what keeps you up at night about this bet?
+3. DETERMINE our commercial parameters:
+   OFFLOAD %: how much liability do we pass to OTC?
+     High offload (60–85%): sharp bet, large stake vs our capacity, high-variance event
+     Low offload (20–50%): soft/recreational bet, low variance, we have an edge on the price
+   MARGIN %: our brokerage commission rate on the offloaded amount
+     3–5%: liquid markets (NBA moneyline, EPL 1X2, spreads, totals)
+     5–10%: player props, exotic markets, parlays, high uncertainty
+
+4. CALCULATE (use exact arithmetic):
+   retained   = ${wagerNum} × (1 − offload/100)         ← our share of the liability
+   offloaded  = ${wagerNum} × (offload/100)              ← OTC's share of the liability
+   commission = offloaded × (margin/100)                 ← brokerage fee, always earned
+   ibOdds     = ${oddsNum}                               ← OTC accepts at same client odds
+
+   netLose    = retained + commission                    ← our PROFIT when selection LOSES
+   netWin     = commission − retained × (${oddsNum}−1)  ← our P&L when selection WINS (usually negative)
+   ev         = (1−${impliedProb.toFixed(4)})×netLose + ${impliedProb.toFixed(4)}×netWin
+   ibBreakEven = (retained + commission) / (retained × ${oddsNum})  ← max win-prob where we're EV-positive
+
+   KEY INSIGHT: if true win probability < ibBreakEven → TAKE (positive EV for us)
+                if true win probability > ibBreakEven → PASS (negative EV for us)
+
+5. VERDICT logic:
+   TAKE      → true win prob clearly below ibBreakEven + commission adequate
+   LEAN_TAKE → close call, slight edge for us, acceptable risk
+   LEAN_PASS → thin margin, close to break-even, consider renegotiating offload %
+   PASS      → true win prob above ibBreakEven, or stake too large for our capacity
+
+6. WRITE aiAnalysis: exactly 4 paragraphs (separated by \\n\\n):
+   § 1 — ODDS ASSESSMENT: where is the client's price vs. fair value and market consensus? Are they getting a good price (bad for us) or a bad price (good for us)?
+   § 2 — FORM & STATISTICS: what does recent form, H2H and stats say about the true probability? Back your fair odds estimate.
+   § 3 — SHARP MONEY PROFILE: does this look like a sharp or recreational bet? What type of punter backs this selection? How should that affect our willingness to retain vs. offload?
+   § 4 — TRADING DECISION: our break-even probability, EV, whether the commission justifies retaining risk, and exact recommendation on offload % and max stake to retain.
 
 Respond ONLY with the following JSON. No markdown. No text before or after. No comments.
 
