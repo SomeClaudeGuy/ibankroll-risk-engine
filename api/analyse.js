@@ -14,6 +14,23 @@ function parseJSON(raw) {
   return JSON.parse(match[0]);
 }
 
+async function withRetry(fn, retries = 2, delayMs = 3000) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const is429 = err.status === 429 || (err.message || '').includes('rate');
+      if (is429 && attempt < retries) {
+        console.log(`[analyse] Rate limited - retrying in ${delayMs}ms (attempt ${attempt + 1}/${retries})`);
+        await new Promise(r => setTimeout(r, delayMs));
+        delayMs *= 2;
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 async function callClaude(prompt, maxTokens, useSearch = false) {
   const params = {
     model: 'claude-sonnet-4-6',
@@ -23,7 +40,7 @@ async function callClaude(prompt, maxTokens, useSearch = false) {
   if (useSearch) {
     params.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
   }
-  const response = await client.messages.create(params);
+  const response = await withRetry(() => client.messages.create(params));
   return parseJSON(extractText(response.content));
 }
 

@@ -14,6 +14,23 @@ function parseJSON(raw) {
   return JSON.parse(match[0]);
 }
 
+async function withRetry(fn, retries = 2, delayMs = 3000) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const is429 = err.status === 429 || (err.message || '').includes('rate');
+      if (is429 && attempt < retries) {
+        console.log(`[parse-fixture] Rate limited - retrying in ${delayMs}ms (attempt ${attempt + 1}/${retries})`);
+        await new Promise(r => setTimeout(r, delayMs));
+        delayMs *= 2;
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 const LEAGUE_MAP = [
   { keys: ['nba'],                        label: 'NBA',               sport: 'NBA' },
   { keys: ['nfl'],                        label: 'NFL',               sport: 'NFL' },
@@ -108,12 +125,12 @@ Respond ONLY with valid JSON - no markdown, no extra text:
 Include all available markets. Use decimal odds throughout.`;
 
     try {
-      const response = await client.messages.create({
+      const response = await withRetry(() => client.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2048,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         messages: [{ role: 'user', content: prompt }],
-      });
+      }));
 
       const raw = extractText(response.content);
       const data = parseJSON(raw);
@@ -122,7 +139,6 @@ Include all available markets. Use decimal odds throughout.`;
         throw new Error('Incomplete fixture data');
       }
 
-      // Mode A: single fixture - return directly so frontend skips the fixture picker
       return res.json({
         success: true,
         mode: 'single',
@@ -136,6 +152,9 @@ Include all available markets. Use decimal odds throughout.`;
       });
 
     } catch (err) {
+      if (err.status === 429) {
+        return res.status(429).json({ success: false, error: 'Rate limit reached - please wait 10 seconds and try again.' });
+      }
       console.error('[parse-fixture] Mode A failed:', err.message, '- falling back to Mode B');
       // Fall through to Mode B
     }
@@ -174,12 +193,12 @@ Respond ONLY with valid JSON - no markdown, no extra text:
 }`;
 
   try {
-    const response = await client.messages.create({
+    const response = await withRetry(() => client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: prompt }],
-    });
+    }));
 
     const raw = extractText(response.content);
     const data = parseJSON(raw);
