@@ -79,11 +79,27 @@ It does NOT affect what we owe if the client wins.
    - Recent form, H2H, key matchup factors
    - Sharp money or recreational? Is this a punter with an edge?
 
-3. RECOMMEND optimal OFFLOAD % to iBankroll, reasoning from:
-   - Stake size relative to typical book capacity (large stake = offload more)
-   - Bet sharpness: sharp/unknown bettor = offload more to protect book
-   - Bet quality: clear recreational money = comfortable retaining more
-   - Our early-stage position: err toward more offload to protect float
+3. RECOMMEND optimal OFFLOAD % to iBankroll using this scoring framework:
+
+   MATCH RISK factors (push offload UP):
+   - Coin-flip fixture (implied prob 45-55%) → high variance, +15-25% offload
+   - Short odds / heavy favourite (implied prob >70%) → lower variance, −10% offload
+   - High-profile / marquee event → sharp money likely, +10% offload
+   - Late line movement toward selection → possible sharp edge, +15% offload
+   - Injury news, weather uncertainty, playoff context → +10-20% offload
+
+   STAKE SIZE factors:
+   - $0–$5K stake: retain more (50-70%), this is normal action
+   - $5K–$15K stake: balanced split (60-75% offload), meaningful exposure
+   - $15K–$30K stake: offload heavily (70-85%), beyond typical book capacity
+   - $30K+ stake: near-maximum offload (85-95%), protect the book
+
+   BETTOR PROFILE factors:
+   - Unknown/new bettor: +10% offload (no history)
+   - Known recreational: −10% offload (soft money, keep the edge)
+   - Known sharp or professional: +20% offload (respect the edge)
+
+   Combine these factors for a single integer offload %. Explain your reasoning with the specific factors that drove your recommendation.
 
 4. CALCULATE (use exact arithmetic, set recommendedMargin to 0):
    retained   = ${wagerNum} × (1 − offload/100)

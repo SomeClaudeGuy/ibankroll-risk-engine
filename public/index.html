@@ -822,10 +822,12 @@ function renderOutput(d) {
   // ── Scenarios ──
   const sc = d.scenarios || [];
   const scCls = ['best','base','worst'];
+  // Override worst-case pnl to always show gross payout (what we write a cheque for)
+  const scPnl = (s, i) => i === 2 ? -grossExp : s.pnl;
   $('scenariosGrid').innerHTML = sc.map((s,i) =>
     `<div class="sc-card ${scCls[i]||''}">
       <div class="sc-label">${esc(s.label)}</div>
-      <div class="sc-pnl">${money(s.pnl,true)}</div>
+      <div class="sc-pnl">${money(scPnl(s,i),true)}</div>
       <div class="sc-desc">${esc(s.desc)}</div>
     </div>`
   ).join('');
