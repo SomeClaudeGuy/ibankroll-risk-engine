@@ -95,7 +95,10 @@ function parseFeed(raw) {
 async function fetchAndParse() {
   const url = getFeedUrl();
   console.log('[feed] Fetching', url);
-  const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  const resp = await fetch(url, {
+    headers: { 'Accept': 'application/json' },
+    signal: AbortSignal.timeout(12000), // 12s max — fail fast if Betby unreachable
+  });
   if (!resp.ok) throw new Error(`Feed HTTP ${resp.status}`);
   const raw = await resp.json();
   return parseFeed(raw);
