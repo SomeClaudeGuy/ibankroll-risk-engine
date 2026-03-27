@@ -33,6 +33,8 @@ const GENERIC_OUTCOME_NAMES = { '2': 'Draw' };
 
 // ── Parse raw feed array into clean event objects ─────────────────────────────
 function parseFeed(raw) {
+  // Handle both raw array and {"items": [...]} wrapper
+  if (raw && typeof raw === 'object' && Array.isArray(raw.items)) raw = raw.items;
   if (!Array.isArray(raw)) throw new Error('Feed response is not an array');
 
   // First pass: collect event descriptors keyed by event ID
@@ -120,13 +122,27 @@ async function getFeedEvents(allowStale = true) {
 }
 
 // ── Fuzzy team matching ───────────────────────────────────────────────────────
+// Common name aliases for international teams/cities
+const ALIASES = {
+  'turkey': 'turkiye', 'turkiye': 'turkey',
+  'czech republic': 'czechia', 'czechia': 'czech republic',
+  'republic of ireland': 'ireland', 'ireland': 'republic of ireland',
+  'usa': 'united states', 'united states': 'usa',
+  'south korea': 'korea republic', 'korea republic': 'south korea',
+  'north korea': 'korea dpr', 'korea dpr': 'north korea',
+  'ivory coast': 'cote d ivoire', 'cote d ivoire': 'ivory coast',
+  'north macedonia': 'macedonia', 'macedonia': 'north macedonia',
+};
+
 function normalise(s) {
-  return (s || '')
+  let n = (s || '')
     .toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  // Apply alias expansion
+  return ALIASES[n] ? `${n} ${ALIASES[n]}` : n;
 }
 
 function teamMatch(query, teamName) {
