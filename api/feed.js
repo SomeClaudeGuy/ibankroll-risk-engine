@@ -154,6 +154,12 @@ function teamMatch(query, teamName) {
   return qWords.length > 0 && qWords.every(w => t.includes(w));
 }
 
+// Find an event by its exact Betby event ID (most reliable — pulled from URL)
+function findEventById(events, eventId) {
+  if (!eventId) return null;
+  return events.find(ev => ev.id === eventId) || null;
+}
+
 // Find an event from a slug like "boston celtics oklahoma city thunder"
 function findEventBySlug(events, slug) {
   const words = normalise(slug).split(' ');
@@ -270,8 +276,9 @@ module.exports = async (req, res) => {
 };
 
 // Named exports for use by other API files
-module.exports.getFeedEvents      = getFeedEvents;
-module.exports.findEventBySlug    = findEventBySlug;
-module.exports.findEventByMatchup = findEventByMatchup;
+module.exports.getFeedEvents          = getFeedEvents;
+module.exports.findEventById          = findEventById;
+module.exports.findEventBySlug        = findEventBySlug;
+module.exports.findEventByMatchup     = findEventByMatchup;
 module.exports.eventToFixtureResponse = eventToFixtureResponse;
-module.exports.getPlatformOdds    = getPlatformOdds;
+module.exports.getPlatformOdds        = getPlatformOdds;

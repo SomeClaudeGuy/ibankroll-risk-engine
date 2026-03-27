@@ -1,6 +1,6 @@
 'use strict';
 
-const { getFeedEvents, findEventBySlug, eventToFixtureResponse } = require('./feed');
+const { getFeedEvents, findEventById, findEventBySlug, eventToFixtureResponse } = require('./feed');
 const Anthropic = require('@anthropic-ai/sdk');
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -156,24 +156,43 @@ module.exports = async (req, res) => {
   const fixtureSlug  = extractFixtureSlug(lastSegment);
   const league       = detectLeague(parsedUrl.pathname);
 
+  // Extract Betby event ID from URL — the trailing 16+ digit number
+  const eventIdMatch = lastSegment.match(/(\d{15,})$/);
+  const urlEventId   = eventIdMatch ? eventIdMatch[1] : null;
+
+  // ── Try Betby feed by event ID first (most accurate, no AI needed) ─────────
+  if (process.env.BETBY_BRAND_ID && urlEventId) {
+    try {
+      const events = await getFeedEvents();
+      const ev = findEventById(events, urlEventId);
+      if (ev) {
+        console.log(`[parse-fixture] Feed ID hit: ${ev.homeTeam.name} vs ${ev.awayTeam.name} (id=${urlEventId})`);
+        return res.json({ success: true, mode: 'single', data: eventToFixtureResponse(ev) });
+      }
+      console.log(`[parse-fixture] Event ID ${urlEventId} not in feed — may be live/past, trying slug`);
+    } catch (err) {
+      console.log('[parse-fixture] Feed ID lookup failed (non-fatal):', err.message);
+    }
+  }
+
   // ── Mode A: URL contains team names ────────────────────────────────────────
   // e.g. /nba/boston-celtics-oklahoma-city-thunder-2648126436443041833
   if (fixtureSlug) {
     console.log(`[parse-fixture] Mode A - fixture slug: "${fixtureSlug}"`);
 
-    // Try Betby feed first — instant, no AI call needed
+    // Try Betby feed by slug — still no AI needed
     try {
       if (process.env.BETBY_BRAND_ID) {
         const events = await getFeedEvents();
         const ev = findEventBySlug(events, fixtureSlug);
         if (ev) {
-          console.log(`[parse-fixture] Feed hit: ${ev.homeTeam.name} vs ${ev.awayTeam.name}`);
+          console.log(`[parse-fixture] Feed slug hit: ${ev.homeTeam.name} vs ${ev.awayTeam.name}`);
           return res.json({ success: true, mode: 'single', data: eventToFixtureResponse(ev) });
         }
-        console.log('[parse-fixture] Feed miss - falling through to web search');
+        console.log('[parse-fixture] Feed slug miss - falling through to web search');
       }
     } catch (err) {
-      console.log('[parse-fixture] Feed lookup failed (non-fatal):', err.message);
+      console.log('[parse-fixture] Feed slug lookup failed (non-fatal):', err.message);
     }
 
     const prompt = `You are a sports data specialist. Search for the current betting odds for this fixture.
