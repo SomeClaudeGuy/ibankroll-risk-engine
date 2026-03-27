@@ -11,7 +11,7 @@ let _cache = null; // { events: [], ts: number }
 function getFeedUrl() {
   const brandId = process.env.BETBY_BRAND_ID;
   if (!brandId || brandId === 'yourbrandID') throw new Error('BETBY_BRAND_ID env var not set');
-  const env = process.env.BETBY_ENV || 'beta';
+  const env = process.env.BETBY_ENV || 'prod';
   return env === 'prod'
     ? `https://api-raeth4un-feed.sptpub.com/api/v1/promofeed/brand/${brandId}/en`
     : `https://api.invisiblesport.com/api/v1/promofeed/brand/${brandId}/en`;
